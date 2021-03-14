@@ -218,7 +218,7 @@ fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, id: Option<String>) 
         rotation: (rotation.x, rotation.y, rotation.z),
         linvel: (linvel.x, linvel.y, z_vel),
         angvel: (angvel.x, angvel.y, angvel.z),
-        mass: body.mass(),
+        mass: 100.0,
     }
 }
 
