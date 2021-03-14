@@ -10,8 +10,6 @@ defmodule SettleIt.GameServer.Engine do
   """
   def init(), do: %State.Game{}
 
-  @spec start(%SettleIt.GameServer.State.Game{:status => any, optional(any) => any}) ::
-          %SettleIt.GameServer.State.Game{:status => :started, optional(any) => any}
   @doc """
   Starts the game
   """
