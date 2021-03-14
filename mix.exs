@@ -7,7 +7,8 @@ defmodule SettleIt.MixProject do
       version: "0.1.0",
       elixir: "~> 1.5",
       elixirc_paths: elixirc_paths(Mix.env()),
-      compilers: [:phoenix, :gettext] ++ Mix.compilers(),
+      compilers: [:rustler, :phoenix] ++ Mix.compilers(),
+      rustler_crates: rustler_crates(),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps()
@@ -41,7 +42,9 @@ defmodule SettleIt.MixProject do
       {:gettext, "~> 0.11"},
       {:jason, "~> 1.0"},
       {:plug_cowboy, "~> 2.0"},
-      {:ecto_enum, "~> 1.4"}
+      {:ecto_enum, "~> 1.4"},
+      {:rustler, "~> 0.21.1"},
+      {:math, "~> 0.6.0"}
     ]
   end
 
@@ -58,4 +61,16 @@ defmodule SettleIt.MixProject do
       test: ["ecto.create --quiet", "ecto.migrate", "test"]
     ]
   end
+
+  defp rustler_crates do
+    [
+      physics: [
+        path: "native/physics",
+        mode: rustc_mode(Mix.env())
+      ]
+    ]
+  end
+
+  defp rustc_mode(:prod), do: :release
+  defp rustc_mode(_), do: :debug
 end

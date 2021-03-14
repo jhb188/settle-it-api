@@ -10,6 +10,9 @@ defmodule SettleIt.Application do
     children = [
       # Start the Ecto repository
       SettleIt.Repo,
+      # Start the GameServer supervisor and registry
+      SettleIt.GameSupervisor,
+      SettleIt.GameServer.Registry,
       # Start the endpoint when the application starts
       SettleItWeb.Endpoint
       # Starts a worker by calling: SettleIt.Worker.start_link(arg)
