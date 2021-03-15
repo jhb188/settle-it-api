@@ -91,9 +91,17 @@ defmodule SettleIt.GameServer do
 
   @impl true
   def handle_info(:step, state) do
+    step_start = :os.system_time(:millisecond)
     next_game_state = Engine.step(state)
+    step_time_elapsed = :os.system_time(:millisecond) - step_start
 
-    Process.send_after(self(), :step, @refresh_interval)
+    refresh_interval =
+      case @refresh_interval - step_time_elapsed do
+        next_interval when next_interval > 0 -> next_interval
+        _otherwise -> @refresh_interval
+      end
+
+    Process.send_after(self(), :step, refresh_interval)
 
     notify_subscribers(next_game_state, {:game_updated, next_game_state})
 

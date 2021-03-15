@@ -257,7 +257,7 @@ fn get_physics_properties_for_class(body_class: BodyClass) -> BodyClassPropertie
 }
 
 fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, metadata: BodyMetadata) -> Body {
-    let orientation = body.position();
+    let orientation = body.predicted_position();
     let translation = orientation.translation;
     let rotation = metadata.rotation;
     let linvel = body.linvel();
