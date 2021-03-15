@@ -45,6 +45,16 @@ defmodule SettleItWeb.GameChannel do
   end
 
   def handle_in(
+        "player_rotate",
+        %{"player_id" => player_id, "angle" => angle},
+        socket
+      ) do
+    notify_game_server_player_rotate(socket, player_id, angle)
+
+    {:noreply, socket}
+  end
+
+  def handle_in(
         "player_jump",
         %{"player_id" => player_id},
         socket
@@ -109,6 +119,10 @@ defmodule SettleItWeb.GameChannel do
 
   defp notify_game_server_player_move(socket, player_id, coords) do
     notify_game_server(socket, {:player_move, player_id, coords})
+  end
+
+  defp notify_game_server_player_rotate(socket, player_id, angle) do
+    notify_game_server(socket, {:player_rotate, player_id, angle})
   end
 
   defp notify_game_server_player_jump(socket, player_id) do

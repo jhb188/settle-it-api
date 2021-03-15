@@ -86,6 +86,19 @@ defmodule SettleIt.GameServer.Engine do
     %State.Game{state | bodies: next_bodies}
   end
 
+  def rotate_player(%State.Game{bodies: bodies} = state, player_id, angle) do
+    next_bodies =
+      Enum.map(bodies, fn body ->
+        if body.id == player_id do
+          %Physics.Body{body | rotation: {0.0, 0.0, angle / 1}}
+        else
+          body
+        end
+      end)
+
+    %State.Game{state | bodies: next_bodies}
+  end
+
   def jump_player(%State.Game{bodies: bodies} = state, player_id) do
     next_bodies =
       Enum.map(bodies, fn body ->

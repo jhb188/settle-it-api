@@ -52,7 +52,16 @@ defmodule SettleIt.GameServer do
       ) do
     next_game_state = Engine.move_player(state, player_id, coords)
 
-    notify_subscribers(next_game_state, {:game_updated, next_game_state})
+    {:noreply, next_game_state}
+  end
+
+  @impl true
+  def handle_cast(
+        {:player_rotate, player_id, angle},
+        state
+      ) do
+    next_game_state = Engine.rotate_player(state, player_id, angle)
+
     {:noreply, next_game_state}
   end
 
