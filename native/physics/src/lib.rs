@@ -23,17 +23,23 @@ mod atoms {
 
 rustler_export_nifs! {
     "Elixir.SettleIt.GameServer.Physics",
-    [("apply_jump", 1, apply_jump),
-    ("step", 2, step)],
+    [
+    ("apply_jump", 1, apply_jump),
+    ("step", 2, step),
+    ("init_world", 0, init_world)
+    ],
     None
 }
 
 #[derive(Serialize, Deserialize, Copy, Clone)]
+#[serde(rename = "class")]
 enum BodyClass {
     #[serde(rename = "player")]
     Player,
     #[serde(rename = "bullet")]
     Bullet,
+    #[serde(rename = "test")]
+    Test,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -89,6 +95,22 @@ fn apply_jump<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
         },
     );
     to_term(env, body).map_err(|err| err.into())
+}
+
+fn init_world<'a>(env: Env<'a>, _args: &[Term<'a>]) -> NifResult<Term<'a>> {
+    let origin_sphere = Body {
+        id: None,
+        translation: (0.0, 0.0, 0.5),
+        rotation: (0.0, 0.0, 0.0),
+        linvel: (0.0, 0.0, 0.0),
+        angvel: (0.0, 0.0, 0.0),
+        mass: 100.0,
+        class: BodyClass::Test,
+    };
+
+    let initial_bodies = vec![origin_sphere];
+
+    to_term(env, initial_bodies).map_err(|err| err.into())
 }
 
 fn step<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
@@ -147,44 +169,12 @@ fn pop_body_id(
     }
 }
 
-fn init_world(_body_set: &mut RigidBodySet, _collider_set: &mut ColliderSet) {
-    /*
-    using an actual floor body to avoid falling through the ground is way slower than just clamping z-linvel
-    and z-translation at 0 if we fall through. it was 20x slower with a 250 x 250 x 1 floor.
-    */
-    // add_floor(body_set, collider_set);
-}
-
-// fn add_floor(body_set: &mut RigidBodySet, collider_set: &mut ColliderSet) {
-//     let floor_size = 250.0;
-//     let floor_height = 1.0;
-//     let floor_body = RigidBodyBuilder::new_static()
-//         .translation(0.0, 0.0, -floor_height)
-//         .lock_rotations()
-//         .lock_translations()
-//         .build();
-//     let floor_handle = body_set.insert(floor_body);
-//     let floor_collider = ColliderBuilder::cuboid(floor_size, floor_size, floor_height).build();
-//     collider_set.insert(floor_collider, floor_handle, body_set);
-// }
-
 fn get_body_sets(
     input_bodies: Vec<Body>,
     metadata_by_handle: &mut HashMap<RigidBodyHandle, BodyMetadata>,
 ) -> (RigidBodySet, ColliderSet) {
     let mut body_set = RigidBodySet::new();
     let mut collider_set = ColliderSet::new();
-
-    // let world_is_uninitialized = input_bodies
-    //     .iter()
-    //     .filter(|input_body| input_body.id.is_none())
-    //     .peekable()
-    //     .peek()
-    //     .is_none();
-
-    // if world_is_uninitialized {
-    init_world(&mut body_set, &mut collider_set);
-    // }
 
     for body in input_bodies {
         let body_id = body.id.clone();
@@ -209,6 +199,7 @@ fn body_to_rigid_body(body: Body) -> RigidBody {
     match body.class {
         BodyClass::Player => body_to_dynamic_rigid_body(body),
         BodyClass::Bullet => body_to_dynamic_rigid_body(body),
+        BodyClass::Test => body_to_dynamic_rigid_body(body),
     }
 }
 
@@ -248,7 +239,11 @@ fn get_physics_properties_for_class(body_class: BodyClass) -> BodyClassPropertie
         },
         BodyClass::Bullet => BodyClassProperties {
             mass: 0.05,
-            height: 0.05,
+            height: 0.10,
+        },
+        BodyClass::Test => BodyClassProperties {
+            mass: 100.0,
+            height: 1.0,
         },
     }
 }
@@ -306,6 +301,7 @@ fn get_collider_for_body_class(body_class: BodyClass) -> Collider {
 
     match body_class {
         BodyClass::Player => ColliderBuilder::new(SharedShape::cylinder(height, 0.20)).build(),
-        BodyClass::Bullet => ColliderBuilder::new(SharedShape::ball(height)).build(),
+        BodyClass::Bullet => ColliderBuilder::new(SharedShape::ball(height / 2.0)).build(),
+        BodyClass::Test => ColliderBuilder::new(SharedShape::ball(height / 2.0)).build(),
     }
 }

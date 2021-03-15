@@ -8,7 +8,9 @@ defmodule SettleIt.GameServer.Engine do
   @doc """
   Initializes a State.Game
   """
-  def init(), do: %State.Game{}
+  def init() do
+    %State.Game{last_updated: :os.system_time(:millisecond), bodies: Physics.init_world()}
+  end
 
   @doc """
   Starts the game

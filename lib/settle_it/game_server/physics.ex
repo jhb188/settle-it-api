@@ -7,6 +7,9 @@ defmodule SettleIt.GameServer.Physics do
   @height 1.0
   @player_mass 100.0
 
+  @spec init_world() :: [Body]
+  def init_world(), do: error()
+
   @spec step(bodies :: [Body], dt :: float()) :: [Body]
   def step(_bodies, _dt), do: error()
 
@@ -15,20 +18,22 @@ defmodule SettleIt.GameServer.Physics do
 
   @spec add_player(bodies :: [Body], new_player_id :: String.t()) :: [Body]
   def add_player(bodies, new_player_id) do
-    {static_bodies, players} = Enum.split_with(bodies, fn body -> is_nil(body.id) end)
+    {players, nonplayers} = split_players_and_nonplayers(bodies)
 
-    player_ids = Enum.map(players, & &1.id) ++ [new_player_id]
+    player_ids =
+      (Enum.map(players, & &1.id) ++ [new_player_id])
+      |> Enum.uniq()
 
-    static_bodies ++ get_spaced_player_bodies(player_ids)
+    nonplayers ++ get_spaced_player_bodies(player_ids)
   end
 
   @spec remove_player(bodies :: [Body], new_player_id :: String.t()) :: [Body]
   def remove_player(bodies, player_id_to_remove) do
-    {static_bodies, players} = Enum.split_with(bodies, fn body -> is_nil(body.id) end)
+    {players, nonplayers} = split_players_and_nonplayers(bodies)
 
     player_ids = players |> Enum.map(& &1.id) |> Enum.reject(&(&1 == player_id_to_remove))
 
-    static_bodies ++ get_spaced_player_bodies(player_ids)
+    nonplayers ++ get_spaced_player_bodies(player_ids)
   end
 
   defp get_spaced_player_bodies([]), do: []
@@ -59,6 +64,10 @@ defmodule SettleIt.GameServer.Physics do
         class: :player
       }
     end)
+  end
+
+  defp split_players_and_nonplayers(bodies) do
+    Enum.split_with(bodies, fn body -> body.class == :player end)
   end
 
   defp error(), do: :erlang.nif_error(:nif_not_loaded)

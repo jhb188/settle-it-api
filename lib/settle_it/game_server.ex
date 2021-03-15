@@ -14,7 +14,7 @@ defmodule SettleIt.GameServer do
   def init(_game_id) do
     Process.send_after(self(), :step, 10)
 
-    {:ok, %State.Game{last_updated: :os.system_time(:millisecond)}}
+    {:ok, Engine.init()}
   end
 
   def start_link(game_id) do
