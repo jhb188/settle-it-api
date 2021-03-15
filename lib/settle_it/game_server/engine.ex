@@ -77,7 +77,7 @@ defmodule SettleIt.GameServer.Engine do
         if body.id == player_id do
           # do not allow move requests to reposition height
           {_current_x, _current_y, current_z} = body.translation
-          %Physics.Body{body | translation: {y / 1, x / 1, current_z}}
+          %Physics.Body{body | translation: {x / 1, y / 1, current_z}}
         else
           body
         end

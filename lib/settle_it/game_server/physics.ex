@@ -54,7 +54,7 @@ defmodule SettleIt.GameServer.Physics do
       # angle 0 corresponds to an orientation resting on the x axis, looking in the direction of
       # the y axis, with the z axis being directly up. rotating (2pi / 4) counterclockwise makes the
       # orientation face the origin
-      rotation = Math.rad2deg(circumference - current_angle - circumference / 4)
+      rotation = Math.rad2deg(current_angle + circumference / 4)
 
       %Body{
         id: player_id,

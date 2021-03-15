@@ -58,6 +58,7 @@ struct Body {
 struct BodyMetadata {
     id: Option<String>,
     class: BodyClass,
+    rotation: (f32, f32, f32),
 }
 
 struct BodyClassProperties {
@@ -68,6 +69,7 @@ struct BodyClassProperties {
 fn apply_jump<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
     let body: Body = from_term(args[0])?;
     let body_id = body.id.clone();
+    let body_rotation = body.rotation.clone();
 
     let rigid_body: RigidBody = body_to_rigid_body(body);
     let mut body_set = RigidBodySet::new();
@@ -92,6 +94,7 @@ fn apply_jump<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
         BodyMetadata {
             id: body_id,
             class: BodyClass::Player,
+            rotation: body_rotation,
         },
     );
     to_term(env, body).map_err(|err| err.into())
@@ -165,6 +168,7 @@ fn pop_body_id(
         None => BodyMetadata {
             id: None,
             class: BodyClass::Player,
+            rotation: (0.0, 0.0, 0.0),
         },
     }
 }
@@ -179,6 +183,7 @@ fn get_body_sets(
     for body in input_bodies {
         let body_id = body.id.clone();
         let body_class = body.class.clone();
+        let body_rotation = body.rotation.clone();
         let rigid_body = body_to_rigid_body(body);
         let collider = get_collider_for_body_class(body_class);
         let body_handle = body_set.insert(rigid_body);
@@ -188,6 +193,7 @@ fn get_body_sets(
             BodyMetadata {
                 id: body_id,
                 class: body_class,
+                rotation: body_rotation,
             },
         );
     }
@@ -213,6 +219,7 @@ fn body_to_dynamic_rigid_body(body: Body) -> RigidBody {
     RigidBodyBuilder::new(BodyStatus::Dynamic)
         .translation(transx, transy, transz)
         .rotation(Vector3::z() * rotz)
+        .lock_rotations()
         .linvel(linvelx, linvely, linvelz)
         .angvel(Vector3::new(angvelx, angvely, angvelz))
         .mass(physics_properties.mass)
@@ -227,6 +234,7 @@ fn body_to_static_rigid_body(body: Body) -> RigidBody {
     RigidBodyBuilder::new(BodyStatus::Static)
         .translation(transx, transy, transz)
         .rotation(Vector3::z() * rotz)
+        .lock_rotations()
         .mass(physics_properties.mass)
         .build()
 }
@@ -251,7 +259,7 @@ fn get_physics_properties_for_class(body_class: BodyClass) -> BodyClassPropertie
 fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, metadata: BodyMetadata) -> Body {
     let orientation = body.position();
     let translation = orientation.translation;
-    let rotation = orientation.rotation.vector();
+    let rotation = metadata.rotation;
     let linvel = body.linvel();
     let angvel = body.angvel();
     let body_class = metadata.class;
@@ -268,7 +276,7 @@ fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, metadata: BodyMetada
     Body {
         id: metadata.id,
         translation: (translation.x, translation.y, z_translation),
-        rotation: (rotation.x, rotation.y, rotation.z),
+        rotation: (rotation.0, rotation.1, rotation.2),
         linvel: (linvel.x, linvel.y, z_vel),
         angvel: (angvel.x, angvel.y, angvel.z),
         mass: body.mass(),
