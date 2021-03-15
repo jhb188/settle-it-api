@@ -28,7 +28,8 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
       rotation: encode_rotation_vector(body.rotation),
       linvel: encode_vec3(body.linvel),
       angvel: encode_vec3(body.angvel),
-      mass: body.mass
+      mass: body.mass,
+      class: body.class
     }
   end
 

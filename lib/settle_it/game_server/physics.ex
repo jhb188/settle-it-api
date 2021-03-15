@@ -5,7 +5,7 @@ defmodule SettleIt.GameServer.Physics do
 
   @distance_from_center 50.0
   @height 1.0
-  @player_mass_in_grams 45360.0
+  @player_mass 100.0
 
   @spec step(bodies :: [Body], dt :: float()) :: [Body]
   def step(_bodies, _dt), do: error()
@@ -55,7 +55,8 @@ defmodule SettleIt.GameServer.Physics do
         id: player_id,
         translation: {x, y, z},
         rotation: {0.0, 0.0, rotation},
-        mass: @player_mass_in_grams
+        mass: @player_mass,
+        class: :player
       }
     end)
   end

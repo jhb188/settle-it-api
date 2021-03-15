@@ -28,6 +28,14 @@ rustler_export_nifs! {
     None
 }
 
+#[derive(Serialize, Deserialize, Copy, Clone)]
+enum BodyClass {
+    #[serde(rename = "player")]
+    Player,
+    #[serde(rename = "bullet")]
+    Bullet,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(rename = "Elixir.SettleIt.GameServer.Physics.Body")]
 struct Body {
@@ -37,10 +45,19 @@ struct Body {
     linvel: (f32, f32, f32),
     angvel: (f32, f32, f32),
     mass: f32,
+    #[serde(rename = "class")]
+    class: BodyClass,
 }
 
-const PLAYER_HEIGHT: f32 = 1.0;
-const PLAYER_RADIUS: f32 = 0.20;
+struct BodyMetadata {
+    id: Option<String>,
+    class: BodyClass,
+}
+
+struct BodyClassProperties {
+    mass: f32,
+    height: f32,
+}
 
 fn apply_jump<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
     let body: Body = from_term(args[0])?;
@@ -51,7 +68,7 @@ fn apply_jump<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
 
     let rigid_body = if can_player_jump(&rigid_body) {
         let mut collider_set = ColliderSet::new();
-        let collider = get_player_collider();
+        let collider = get_collider_for_body_class(BodyClass::Player);
         let body_handle = body_set.insert(rigid_body);
         collider_set.insert(collider, body_handle, &mut body_set);
 
@@ -64,7 +81,13 @@ fn apply_jump<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
         &rigid_body
     };
 
-    let body = rigid_body_to_body(rigid_body, body_id);
+    let body = rigid_body_to_body(
+        rigid_body,
+        BodyMetadata {
+            id: body_id,
+            class: BodyClass::Player,
+        },
+    );
     to_term(env, body).map_err(|err| err.into())
 }
 
@@ -83,14 +106,14 @@ fn step_bodies(input_bodies: Vec<Body>, dt: f32) -> Vec<Body> {
     integration_parameters.dt = dt;
     let mut broad_phase = BroadPhase::new();
     let mut narrow_phase = NarrowPhase::new();
-    let mut body_ids: HashMap<RigidBodyHandle, String> = HashMap::new();
+    let mut metadata_by_handle: HashMap<RigidBodyHandle, BodyMetadata> = HashMap::new();
     let mut joints = JointSet::new();
 
     // TODO: implement physics and contact hooks
     let physics_hooks = ();
     let event_handler = ();
 
-    let (mut body_set, mut collider_set) = get_body_sets(input_bodies, &mut body_ids);
+    let (mut body_set, mut collider_set) = get_body_sets(input_bodies, &mut metadata_by_handle);
 
     pipeline.step(
         &gravity,
@@ -106,17 +129,21 @@ fn step_bodies(input_bodies: Vec<Body>, dt: f32) -> Vec<Body> {
 
     body_set
         .iter()
-        .map(|(handle, b)| rigid_body_to_body(b, get_body_id(&handle, &body_ids)))
+        .map(|(handle, b)| rigid_body_to_body(b, pop_body_id(&handle, &mut metadata_by_handle)))
         .collect()
 }
 
-fn get_body_id(
+fn pop_body_id(
     handle: &RigidBodyHandle,
-    body_ids: &HashMap<RigidBodyHandle, String>,
-) -> Option<String> {
-    match body_ids.get(handle) {
-        Some(body_id) => Some(body_id.to_owned()),
-        None => None,
+    metadata_by_handle: &mut HashMap<RigidBodyHandle, BodyMetadata>,
+) -> BodyMetadata {
+    match metadata_by_handle.remove(handle) {
+        Some(metadata) => metadata,
+        // TODO: properly handle missing metadata; we shouldn't be missing this
+        None => BodyMetadata {
+            id: None,
+            class: BodyClass::Player,
+        },
     }
 }
 
@@ -143,7 +170,7 @@ fn init_world(_body_set: &mut RigidBodySet, _collider_set: &mut ColliderSet) {
 
 fn get_body_sets(
     input_bodies: Vec<Body>,
-    body_ids: &mut HashMap<RigidBodyHandle, String>,
+    metadata_by_handle: &mut HashMap<RigidBodyHandle, BodyMetadata>,
 ) -> (RigidBodySet, ColliderSet) {
     let mut body_set = RigidBodySet::new();
     let mut collider_set = ColliderSet::new();
@@ -159,75 +186,108 @@ fn get_body_sets(
     init_world(&mut body_set, &mut collider_set);
     // }
 
-    let dynamic_bodies: Vec<Body> = input_bodies
-        .into_iter()
-        .filter(|input_body| input_body.id.is_some())
-        .collect();
-
-    for body in dynamic_bodies {
-        let maybe_body_id = body.id.clone();
+    for body in input_bodies {
+        let body_id = body.id.clone();
+        let body_class = body.class.clone();
         let rigid_body = body_to_rigid_body(body);
-
-        let collider = get_player_collider();
+        let collider = get_collider_for_body_class(body_class);
         let body_handle = body_set.insert(rigid_body);
         collider_set.insert(collider, body_handle, &mut body_set);
-        match maybe_body_id {
-            Some(body_id) => {
-                body_ids.insert(body_handle, body_id);
-            }
-            None => {}
-        }
+        metadata_by_handle.insert(
+            body_handle,
+            BodyMetadata {
+                id: body_id,
+                class: body_class,
+            },
+        );
     }
 
     (body_set, collider_set)
 }
 
 fn body_to_rigid_body(body: Body) -> RigidBody {
+    match body.class {
+        BodyClass::Player => body_to_dynamic_rigid_body(body),
+        BodyClass::Bullet => body_to_dynamic_rigid_body(body),
+    }
+}
+
+fn body_to_dynamic_rigid_body(body: Body) -> RigidBody {
     let (transx, transy, transz) = body.translation;
     let (linvelx, linvely, linvelz) = body.linvel;
     let (_rotx, _roty, rotz) = body.rotation;
     let (angvelx, angvely, angvelz) = body.angvel;
+    let physics_properties = get_physics_properties_for_class(body.class);
 
     RigidBodyBuilder::new(BodyStatus::Dynamic)
         .translation(transx, transy, transz)
         .rotation(Vector3::z() * rotz)
         .linvel(linvelx, linvely, linvelz)
         .angvel(Vector3::new(angvelx, angvely, angvelz))
-        .mass(body.mass)
+        .mass(physics_properties.mass)
         .build()
 }
 
-fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, id: Option<String>) -> Body {
+fn body_to_static_rigid_body(body: Body) -> RigidBody {
+    let (transx, transy, transz) = body.translation;
+    let (_rotx, _roty, rotz) = body.rotation;
+    let physics_properties = get_physics_properties_for_class(body.class);
+
+    RigidBodyBuilder::new(BodyStatus::Static)
+        .translation(transx, transy, transz)
+        .rotation(Vector3::z() * rotz)
+        .mass(physics_properties.mass)
+        .build()
+}
+
+fn get_physics_properties_for_class(body_class: BodyClass) -> BodyClassProperties {
+    match body_class {
+        BodyClass::Player => BodyClassProperties {
+            mass: 100.0,
+            height: 2.0,
+        },
+        BodyClass::Bullet => BodyClassProperties {
+            mass: 0.05,
+            height: 0.05,
+        },
+    }
+}
+
+fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, metadata: BodyMetadata) -> Body {
     let orientation = body.position();
     let translation = orientation.translation;
     let rotation = orientation.rotation.vector();
     let linvel = body.linvel();
     let angvel = body.angvel();
+    let body_class = metadata.class;
+    let body_class_properties = get_physics_properties_for_class(body_class);
 
     // clamp player to floor
     let (z_translation, z_vel) =
-        if body.is_dynamic() && is_player_on_floor(body) && is_body_falling(body) {
-            (PLAYER_HEIGHT / 2.0, 0.0)
+        if body.is_dynamic() && is_body_on_floor(body, body_class) && is_body_falling(body) {
+            (body_class_properties.height / 2.0, 0.0)
         } else {
             (translation.z, linvel.z)
         };
 
     Body {
-        id: id,
+        id: metadata.id,
         translation: (translation.x, translation.y, z_translation),
         rotation: (rotation.x, rotation.y, rotation.z),
         linvel: (linvel.x, linvel.y, z_vel),
         angvel: (angvel.x, angvel.y, angvel.z),
-        mass: 100.0,
+        mass: body.mass(),
+        class: metadata.class,
     }
 }
 
-fn is_player_on_floor(body: &rapier3d::dynamics::RigidBody) -> bool {
+fn is_body_on_floor(body: &rapier3d::dynamics::RigidBody, body_class: BodyClass) -> bool {
     let orientation = body.position();
     let translation = orientation.translation;
     let origin_height = translation.z;
+    let object_height = get_physics_properties_for_class(body_class).height;
 
-    origin_height <= PLAYER_HEIGHT / 2.0
+    origin_height <= (object_height / 2.0)
 }
 
 fn is_body_falling(body: &rapier3d::dynamics::RigidBody) -> bool {
@@ -237,9 +297,15 @@ fn is_body_falling(body: &rapier3d::dynamics::RigidBody) -> bool {
 }
 
 fn can_player_jump(body: &rapier3d::dynamics::RigidBody) -> bool {
-    is_player_on_floor(body) && is_body_falling(body)
+    is_body_on_floor(body, BodyClass::Player) && is_body_falling(body)
 }
 
-fn get_player_collider() -> Collider {
-    ColliderBuilder::new(SharedShape::cylinder(PLAYER_HEIGHT, PLAYER_RADIUS)).build()
+fn get_collider_for_body_class(body_class: BodyClass) -> Collider {
+    let body_class_properties = get_physics_properties_for_class(body_class);
+    let height = body_class_properties.height;
+
+    match body_class {
+        BodyClass::Player => ColliderBuilder::new(SharedShape::cylinder(height, 0.20)).build(),
+        BodyClass::Bullet => ColliderBuilder::new(SharedShape::ball(height)).build(),
+    }
 }
