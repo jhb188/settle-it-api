@@ -46,8 +46,8 @@ defmodule SettleIt.MixProject do
   # attempt to hack around rebuilding NIF
   defp compilers() do
     case System.find_executable("cargo") do
-      nil -> [:rustler, :phoenix]
-      _ -> [:phoenix]
+      nil -> [:phoenix]
+      _ -> [:rustler, :phoenix]
     end
   end
 
