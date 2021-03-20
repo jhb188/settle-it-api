@@ -1,3 +1,3 @@
 https://github.com/emk/heroku-buildpack-rust.git
-https://github.com/HashNuke/heroku-buildpack-elixir.git#45cbdec628fe351366c34d1a613e0c3e63ce28b4
+https://github.com/HashNuke/heroku-buildpack-elixir.git
 https://github.com/gigalixir/gigalixir-buildpack-mix.git
