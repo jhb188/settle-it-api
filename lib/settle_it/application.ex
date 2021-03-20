@@ -8,8 +8,6 @@ defmodule SettleIt.Application do
   def start(_type, _args) do
     # List all child processes to be supervised
     children = [
-      # Start the Ecto repository
-      SettleIt.Repo,
       # Start the GameServer supervisor and registry
       SettleIt.GameSupervisor,
       SettleIt.GameServer.Registry,

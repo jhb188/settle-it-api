@@ -1,14 +1,5 @@
 use Mix.Config
 
-# Configure your database
-config :settle_it, SettleIt.Repo,
-  username: "postgres",
-  password: "postgres",
-  database: "settle_it_dev",
-  hostname: "localhost",
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
-
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #

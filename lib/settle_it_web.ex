@@ -22,7 +22,6 @@ defmodule SettleItWeb do
       use Phoenix.Controller, namespace: SettleItWeb
 
       import Plug.Conn
-      import SettleItWeb.Gettext
       alias SettleItWeb.Router.Helpers, as: Routes
     end
   end
@@ -37,7 +36,6 @@ defmodule SettleItWeb do
       import Phoenix.Controller, only: [get_flash: 1, get_flash: 2, view_module: 1]
 
       import SettleItWeb.ErrorHelpers
-      import SettleItWeb.Gettext
       alias SettleItWeb.Router.Helpers, as: Routes
     end
   end
@@ -53,7 +51,6 @@ defmodule SettleItWeb do
   def channel do
     quote do
       use Phoenix.Channel
-      import SettleItWeb.Gettext
     end
   end
 

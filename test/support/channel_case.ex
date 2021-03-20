@@ -24,14 +24,4 @@ defmodule SettleItWeb.ChannelCase do
       @endpoint SettleItWeb.Endpoint
     end
   end
-
-  setup tags do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(SettleIt.Repo)
-
-    unless tags[:async] do
-      Ecto.Adapters.SQL.Sandbox.mode(SettleIt.Repo, {:shared, self()})
-    end
-
-    :ok
-  end
 end

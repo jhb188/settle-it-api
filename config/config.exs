@@ -8,7 +8,6 @@
 use Mix.Config
 
 config :settle_it,
-  ecto_repos: [SettleIt.Repo],
   generators: [binary_id: true]
 
 # Configures the endpoint

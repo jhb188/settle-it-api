@@ -18,23 +18,11 @@ defmodule SettleIt.DataCase do
 
   using do
     quote do
-      alias SettleIt.Repo
-
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
       import SettleIt.DataCase
     end
-  end
-
-  setup tags do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(SettleIt.Repo)
-
-    unless tags[:async] do
-      Ecto.Adapters.SQL.Sandbox.mode(SettleIt.Repo, {:shared, self()})
-    end
-
-    :ok
   end
 
   @doc """

@@ -3,11 +3,10 @@ defmodule SettleItWeb.GameChannel do
 
   alias SettleIt.GameServer.Notifications.GameUpdate
   alias SettleIt.GameServer.State
-  alias SettleIt.Players.Player
 
   def join("game:" <> game_id, id, socket) do
-    with %Player{} = user <- %Player{name: "", id: id},
-         socket <- init_socket(socket, game_id, user),
+    with player <- %State.Player{name: "", id: id},
+         socket <- init_socket(socket, game_id, player),
          %State.Game{} = game_state <- join_game_server(socket) do
       {:ok, GameUpdate.from_state(game_state), socket}
     else
@@ -87,9 +86,9 @@ defmodule SettleItWeb.GameChannel do
     {:noreply, socket}
   end
 
-  defp init_socket(socket, game_id, %Player{} = user) do
+  defp init_socket(socket, game_id, %State.Player{} = player) do
     socket
-    |> assign(:user, user)
+    |> assign(:player, player)
     |> assign(:game_id, game_id)
   end
 
@@ -118,12 +117,12 @@ defmodule SettleItWeb.GameChannel do
   defp join_game_server(socket) do
     call_game_server(
       socket,
-      {:player_join, socket.assigns.user, self()}
+      {:player_join, socket.assigns.player, self()}
     )
   end
 
   defp leave_game_server(socket) do
-    notify_game_server(socket, {:player_leave, socket.assigns.user.id})
+    notify_game_server(socket, {:player_leave, socket.assigns.player.id})
   end
 
   defp notify_game_server_start_game(socket) do

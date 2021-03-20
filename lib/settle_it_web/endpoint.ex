@@ -39,6 +39,4 @@ defmodule SettleItWeb.Endpoint do
     store: :cookie,
     key: "_settle_it_key",
     signing_salt: "ksgoD4la"
-
-  plug SettleItWeb.Router
 end
