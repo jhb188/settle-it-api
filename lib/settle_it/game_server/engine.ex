@@ -1,9 +1,15 @@
 defmodule SettleIt.GameServer.Engine do
   alias SettleIt.GameServer.State
   alias SettleIt.GameServer.Physics
+  alias SettleIt.GameServer.Physics.Body
 
   @type player_id :: String.t()
   @type coordinate :: non_neg_integer()
+
+  @player_distance_from_center 50.0
+  @player_height 1.0
+  @player_mass 100.0
+  @bullet_mass 0.05
 
   @doc """
   Initializes a State.Game
@@ -43,7 +49,7 @@ defmodule SettleIt.GameServer.Engine do
 
     next_bodies =
       case status do
-        :pending -> Physics.add_player(bodies, player.id)
+        :pending -> do_add_player(bodies, player.id)
         _ -> bodies
       end
 
@@ -61,7 +67,7 @@ defmodule SettleIt.GameServer.Engine do
 
     next_bodies =
       case status do
-        :pending -> Physics.remove_player(bodies, player_id)
+        :pending -> do_remove_player(bodies, player_id)
         _ -> bodies
       end
 
@@ -75,7 +81,7 @@ defmodule SettleIt.GameServer.Engine do
     next_bodies =
       Enum.map(bodies, fn body ->
         if body.id == player_id do
-          # do not allow move requests to reposition height
+          # do not allow move requests to reposition player_height
           {_current_x, _current_y, current_z} = body.translation
           %Physics.Body{body | translation: {x / 1, y / 1, current_z}}
         else
@@ -112,6 +118,19 @@ defmodule SettleIt.GameServer.Engine do
     %State.Game{state | bodies: next_bodies}
   end
 
+  def add_bullet(%State.Game{bodies: bodies} = state, player_id, position, linvel) do
+    bullet = %Body{
+      translation: {position.x, position.y, position.z},
+      linvel: {linvel.x / 1, linvel.y / 1, linvel.z / 1},
+      rotation: {0.0, 0.0, 0.0},
+      mass: @bullet_mass,
+      class: :bullet,
+      owner_id: player_id
+    }
+
+    %State.Game{state | bodies: [bullet | bodies]}
+  end
+
   def step(%State.Game{last_updated: last_updated, bodies: bodies} = state) do
     target_time = :os.system_time(:millisecond)
     dt = target_time - last_updated
@@ -124,6 +143,59 @@ defmodule SettleIt.GameServer.Engine do
       | bodies: updated_bodies,
         last_updated: target_time
     }
+  end
+
+  def do_add_player(bodies, new_player_id) do
+    {players, nonplayers} = split_players_and_nonplayers(bodies)
+
+    player_ids =
+      (Enum.map(players, & &1.id) ++ [new_player_id])
+      |> Enum.uniq()
+
+    nonplayers ++ get_spaced_player_bodies(player_ids)
+  end
+
+  def do_remove_player(bodies, player_id_to_remove) do
+    {players, nonplayers} = split_players_and_nonplayers(bodies)
+
+    player_ids = players |> Enum.map(& &1.id) |> Enum.reject(&(&1 == player_id_to_remove))
+
+    nonplayers ++ get_spaced_player_bodies(player_ids)
+  end
+
+  defp get_spaced_player_bodies([]), do: []
+
+  defp get_spaced_player_bodies(player_ids) do
+    num_players = length(player_ids)
+    circumference = 2 * :math.pi()
+    angle_size = circumference / num_players
+
+    player_ids
+    |> Enum.with_index()
+    |> Enum.map(fn {player_id, i} ->
+      current_angle = angle_size * i
+      x = @player_distance_from_center * :math.cos(current_angle)
+      y = @player_distance_from_center * :math.sin(current_angle)
+      z = @player_height / 2
+
+      # angle 0 corresponds to an orientation resting on the x axis, looking in the direction of
+      # the y axis, with the z axis being directly up. rotating (2pi / 4) counterclockwise makes the
+      # orientation face the origin
+      rotation = Math.rad2deg(current_angle + circumference / 4)
+
+      %Body{
+        id: player_id,
+        translation: {x, y, z},
+        rotation: {0.0, 0.0, rotation},
+        mass: @player_mass,
+        class: :player,
+        hp: 10
+      }
+    end)
+  end
+
+  defp split_players_and_nonplayers(bodies) do
+    Enum.split_with(bodies, fn body -> body.class == :player end)
   end
 
   @doc """

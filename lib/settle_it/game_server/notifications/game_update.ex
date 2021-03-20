@@ -29,7 +29,9 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
       linvel: encode_vec3(body.linvel),
       angvel: encode_vec3(body.angvel),
       mass: body.mass,
-      class: body.class
+      class: body.class,
+      owner_id: body.owner_id,
+      hp: body.hp
     }
   end
 

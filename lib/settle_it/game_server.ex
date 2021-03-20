@@ -76,6 +76,16 @@ defmodule SettleIt.GameServer do
   end
 
   @impl true
+  def handle_cast(
+        {:player_shoot, player_id, position, linvel},
+        state
+      ) do
+    next_game_state = Engine.add_bullet(state, player_id, position, linvel)
+
+    {:noreply, next_game_state}
+  end
+
+  @impl true
   def handle_cast(:start_game, state) do
     next_game_state = Engine.start(state)
     notify_subscribers(next_game_state, {:game_updated, next_game_state})

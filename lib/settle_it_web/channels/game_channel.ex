@@ -64,6 +64,23 @@ defmodule SettleItWeb.GameChannel do
     {:noreply, socket}
   end
 
+  def handle_in(
+        "player_shoot",
+        %{
+          "player_id" => player_id,
+          "position" => %{"x" => position_x, "y" => position_y, "z" => position_z},
+          "linvel" => %{"x" => linvel_x, "y" => linvel_y, "z" => linvel_z}
+        },
+        socket
+      ) do
+    position = %{x: position_x, y: position_y, z: position_z}
+    linvel = %{x: linvel_x, y: linvel_y, z: linvel_z}
+
+    notify_game_server_player_shoot(socket, player_id, position, linvel)
+
+    {:noreply, socket}
+  end
+
   def handle_info({:game_updated, %State.Game{} = game_state}, socket) do
     push(socket, "game:updated", GameUpdate.from_state(game_state))
 
@@ -127,5 +144,9 @@ defmodule SettleItWeb.GameChannel do
 
   defp notify_game_server_player_jump(socket, player_id) do
     notify_game_server(socket, {:player_jump, player_id})
+  end
+
+  def notify_game_server_player_shoot(socket, player_id, position, velocity) do
+    notify_game_server(socket, {:player_shoot, player_id, position, velocity})
   end
 end
