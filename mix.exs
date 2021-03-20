@@ -7,7 +7,7 @@ defmodule SettleIt.MixProject do
       version: "0.1.0",
       elixir: "~> 1.5",
       elixirc_paths: elixirc_paths(Mix.env()),
-      compilers: [:rustler, :phoenix] ++ Mix.compilers(),
+      compilers: compilers() ++ Mix.compilers(),
       rustler_crates: rustler_crates(),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -41,6 +41,14 @@ defmodule SettleIt.MixProject do
       {:rustler, "~> 0.21.1"},
       {:math, "~> 0.6.0"}
     ]
+  end
+
+  # attempt to hack around rebuilding NIF
+  defp compilers() do
+    case System.get_env("MIX_CMD") do
+      nil -> [:rustler, :phoenix]
+      _ -> [:phoenix]
+    end
   end
 
   # Aliases are shortcuts or tasks specific to the current project.
