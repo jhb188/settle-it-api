@@ -1,5 +1,6 @@
 defmodule SettleIt.GameServer.State.Game do
-  defstruct players: %{},
+  defstruct id: nil,
+            players: %{},
             status: :pending,
             bodies: %{},
             last_updated: nil

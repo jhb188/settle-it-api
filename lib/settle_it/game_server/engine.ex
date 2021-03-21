@@ -14,8 +14,12 @@ defmodule SettleIt.GameServer.Engine do
   @doc """
   Initializes a State.Game
   """
-  def init() do
-    %State.Game{last_updated: :os.system_time(:millisecond), bodies: Physics.init_world()}
+  def init(game_id) do
+    %State.Game{
+      id: game_id,
+      last_updated: :os.system_time(:millisecond),
+      bodies: Physics.init_world()
+    }
   end
 
   @doc """
@@ -105,6 +109,7 @@ defmodule SettleIt.GameServer.Engine do
 
   def add_bullet(%State.Game{bodies: bodies} = state, player_id, position, linvel) do
     bullet_id = UUID.uuid4()
+
     bullet = %Body{
       id: bullet_id,
       translation: {position.x, position.y, position.z},
@@ -150,7 +155,7 @@ defmodule SettleIt.GameServer.Engine do
     Map.merge(nonplayers, get_spaced_player_bodies(player_ids))
   end
 
-  defp get_spaced_player_bodies([]), do: []
+  defp get_spaced_player_bodies([]), do: %{}
 
   defp get_spaced_player_bodies(player_ids) do
     num_players = length(player_ids)
@@ -170,14 +175,15 @@ defmodule SettleIt.GameServer.Engine do
       # orientation face the origin
       rotation = Math.rad2deg(current_angle + circumference / 4)
 
-      {player_id, %Body{
-        id: player_id,
-        translation: {x, y, z},
-        rotation: {0.0, 0.0, rotation},
-        mass: @player_mass,
-        class: :player,
-        hp: 10
-      }}
+      {player_id,
+       %Body{
+         id: player_id,
+         translation: {x, y, z},
+         rotation: {0.0, 0.0, rotation},
+         mass: @player_mass,
+         class: :player,
+         hp: 10
+       }}
     end)
     |> Map.new()
   end

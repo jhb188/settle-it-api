@@ -8,13 +8,12 @@ defmodule SettleIt.Application do
   def start(_type, _args) do
     # List all child processes to be supervised
     children = [
+      {Cachex, name: :game_server_pids},
       # Start the GameServer supervisor and registry
       SettleIt.GameSupervisor,
       SettleIt.GameServer.Registry,
       # Start the endpoint when the application starts
       SettleItWeb.Endpoint
-      # Starts a worker by calling: SettleIt.Worker.start_link(arg)
-      # {SettleIt.Worker, arg},
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
