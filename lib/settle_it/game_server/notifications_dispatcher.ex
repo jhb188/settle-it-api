@@ -14,8 +14,12 @@ defmodule SettleIt.GameServer.NotificationsDispatcher do
     {:consumer, :ok, subscribe_to: [{String.to_atom("state_producer_" <> game_id), []}]}
   end
 
+  def handle_events([], _from, state) do
+    {:no_reply, [], state}
+  end
+
   def handle_events(game_states, _from, state) do
-    Enum.each(game_states, &notify_subscribers_game_updated/1)
+    game_states |> List.last() |> notify_subscribers_game_updated()
 
     {:noreply, [], state}
   end
