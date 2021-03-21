@@ -80,8 +80,8 @@ defmodule SettleItWeb.GameChannel do
     {:noreply, socket}
   end
 
-  def handle_info({:game_updated, %State.Game{} = game_state}, socket) do
-    push(socket, "game:updated", GameUpdate.from_state(game_state))
+  def handle_info({:game_updated, game_update}, socket) do
+    push(socket, "game:updated", game_update)
 
     {:noreply, socket}
   end

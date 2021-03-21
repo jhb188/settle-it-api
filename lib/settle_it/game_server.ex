@@ -6,6 +6,7 @@ defmodule SettleIt.GameServer do
 
   alias SettleIt.GameServer.Engine
   alias SettleIt.GameServer.State
+  alias SettleIt.GameServer.Notifications.GameUpdate
 
   @physics_steps_per_second 60
   @refresh_interval round(1000 / @physics_steps_per_second)
@@ -25,7 +26,7 @@ defmodule SettleIt.GameServer do
   def handle_call({:player_join, player, pid}, _from, state) do
     next_game_state = Engine.add_player(state, player, pid)
 
-    notify_subscribers(next_game_state, {:game_updated, next_game_state})
+    notify_subscribers_game_updated(next_game_state)
 
     {:reply, next_game_state, next_game_state}
   end
@@ -40,7 +41,7 @@ defmodule SettleIt.GameServer do
         {:noreply, next_game_state}
 
       true ->
-        notify_subscribers(next_game_state, {:game_updated, next_game_state})
+        notify_subscribers_game_updated(next_game_state)
         {:noreply, next_game_state}
     end
   end
@@ -88,14 +89,14 @@ defmodule SettleIt.GameServer do
   @impl true
   def handle_cast(:start_game, state) do
     next_game_state = Engine.start(state)
-    notify_subscribers(next_game_state, {:game_updated, next_game_state})
+    notify_subscribers_game_updated(next_game_state)
     {:noreply, next_game_state}
   end
 
   @impl true
   def handle_cast(:restart_game, state) do
     next_game_state = Engine.restart(state)
-    notify_subscribers(next_game_state, {:game_updated, next_game_state})
+    notify_subscribers_game_updated(next_game_state)
     {:noreply, next_game_state}
   end
 
@@ -113,7 +114,7 @@ defmodule SettleIt.GameServer do
 
     Process.send_after(self(), :step, refresh_interval)
 
-    notify_subscribers(next_game_state, {:game_updated, next_game_state})
+    notify_subscribers_game_updated(next_game_state)
 
     {:noreply, next_game_state}
   end
@@ -124,6 +125,12 @@ defmodule SettleIt.GameServer do
     |> Enum.each(fn pid -> Process.send(pid, message, []) end)
 
     :ok
+  end
+
+  defp notify_subscribers_game_updated(game_state) do
+    game_update = GameUpdate.from_state(game_state)
+
+    notify_subscribers(game_state, {:game_updated, game_update})
   end
 
   defp kill_game_server() do
