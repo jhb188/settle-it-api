@@ -22,19 +22,7 @@ defmodule SettleIt.GameServer.StateProducer do
   def handle_events(actions, _from, state) do
     next_state = Enum.reduce(actions, state, &apply_action/2)
 
-    {:noreply, [next_state], next_state}
-  end
-
-  @impl true
-  def handle_cast({:new_state, new_state}, _state) do
-    {:noreply, [], new_state}
-  end
-
-  @impl true
-  def handle_info(:step, nil) do
-    Process.send_after(self(), :step, @refresh_interval)
-
-    {:noreply, [], nil}
+    {:noreply, [], next_state}
   end
 
   @impl true
