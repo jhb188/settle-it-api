@@ -1,7 +1,7 @@
 defmodule SettleIt.GameServer.State.Game do
   defstruct players: %{},
             status: :pending,
-            bodies: [],
+            bodies: %{},
             last_updated: nil
 
   def pending?(%__MODULE__{status: :pending}), do: true

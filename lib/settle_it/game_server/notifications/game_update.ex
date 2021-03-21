@@ -9,7 +9,7 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
       #   game_state.players
       #   |> Map.values()
       #   |> Enum.map(&encode_player/1),
-      bodies: Enum.map(game_state.bodies, &encode_body/1),
+      bodies: Enum.map(game_state.bodies, fn {_id, body} -> encode_body(body) end),
       last_updated: game_state.last_updated
     }
   end

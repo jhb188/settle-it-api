@@ -14,6 +14,7 @@ use serde;
 use serde::{Deserialize, Serialize};
 use serde_rustler::{from_term, to_term};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 mod atoms {
     rustler_atoms! {
@@ -46,7 +47,7 @@ enum BodyClass {
 #[derive(Serialize, Deserialize)]
 #[serde(rename = "Elixir.SettleIt.GameServer.Physics.Body")]
 struct Body {
-    id: Option<String>,
+    id: String,
     owner_id: Option<String>,
     translation: (f32, f32, f32),
     rotation: (f32, f32, f32),
@@ -60,7 +61,7 @@ struct Body {
 
 #[derive(Clone)]
 struct BodyMetadata {
-    id: Option<String>,
+    id: String,
     owner_id: Option<String>,
     class: BodyClass,
     rotation: (f32, f32, f32),
@@ -111,8 +112,10 @@ fn apply_jump<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
 }
 
 fn init_world<'a>(env: Env<'a>, _args: &[Term<'a>]) -> NifResult<Term<'a>> {
+    let origin_sphere_id = Uuid::new_v4().to_string();
+    let origin_sphere_key = origin_sphere_id.clone();
     let origin_sphere = Body {
-        id: None,
+        id: origin_sphere_id,
         owner_id: None,
         translation: (0.0, 0.0, 0.5),
         rotation: (0.0, 0.0, 0.0),
@@ -123,20 +126,22 @@ fn init_world<'a>(env: Env<'a>, _args: &[Term<'a>]) -> NifResult<Term<'a>> {
         hp: 0,
     };
 
-    let initial_bodies = vec![origin_sphere];
+    let initial_bodies: HashMap<String, Body> = vec![(origin_sphere_key, origin_sphere)]
+        .into_iter()
+        .collect();
 
     to_term(env, initial_bodies).map_err(|err| err.into())
 }
 
 fn step<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
-    let bodies: Vec<Body> = from_term(args[0])?;
+    let bodies: HashMap<String, Body> = from_term(args[0])?;
     let dt: f32 = from_term(args[1])?;
-    let bodies = step_bodies(bodies, dt);
+    let bodies: HashMap<String, Body> = step_bodies(bodies, dt);
 
     to_term(env, bodies).map_err(|err| err.into())
 }
 
-fn step_bodies(input_bodies: Vec<Body>, dt: f32) -> Vec<Body> {
+fn step_bodies(input_bodies: HashMap<String, Body>, dt: f32) -> HashMap<String, Body> {
     let mut pipeline = PhysicsPipeline::new();
     let gravity = Vector3::new(0.0, 0.0, -9.80665);
     let mut integration_parameters = IntegrationParameters::default();
@@ -179,10 +184,11 @@ fn step_bodies(input_bodies: Vec<Body>, dt: f32) -> Vec<Body> {
         .filter_map(|(handle, body)| {
             let metadata = pop_body_metadata(&handle, &mut metadata_by_handle);
             let body_metadata = metadata.clone();
+            let body_id = body_metadata.id.clone();
             if is_stale(body, metadata) {
                 None
             } else {
-                Some(rigid_body_to_body(body, body_metadata))
+                Some((body_id, rigid_body_to_body(body, body_metadata)))
             }
         })
         .collect()
@@ -213,9 +219,12 @@ fn handle_contact(
                 .get(&body_handle_b)
                 .expect("missing metadata for body handle");
 
+            let metadata_a_id = metadata_a.id.clone();
+            let metadata_b_id = metadata_b.id.clone();
+
             match (metadata_a.class, metadata_b.class) {
                 (BodyClass::Player, BodyClass::Bullet) => {
-                    if metadata_a.id != metadata_b.owner_id {
+                    if Some(metadata_a_id) != metadata_b.owner_id {
                         metadata_by_handle.insert(
                             body_handle_a,
                             BodyMetadata {
@@ -231,7 +240,7 @@ fn handle_contact(
                     }
                 }
                 (BodyClass::Bullet, BodyClass::Player) => {
-                    if metadata_a.owner_id != metadata_b.id {
+                    if metadata_a.owner_id != Some(metadata_b_id) {
                         metadata_by_handle.insert(
                             body_handle_b,
                             BodyMetadata {
@@ -257,28 +266,19 @@ fn pop_body_metadata(
     handle: &RigidBodyHandle,
     metadata_by_handle: &mut HashMap<RigidBodyHandle, BodyMetadata>,
 ) -> BodyMetadata {
-    match metadata_by_handle.remove(handle) {
-        Some(metadata) => metadata,
-        // TODO: properly handle missing metadata; we shouldn't be missing this
-        None => BodyMetadata {
-            id: None,
-            owner_id: None,
-            class: BodyClass::Player,
-            rotation: (0.0, 0.0, 0.0),
-            hp: 0,
-        },
-    }
+    metadata_by_handle
+        .remove(handle)
+        .expect("no metadata for body handle")
 }
 
 fn get_body_sets(
-    input_bodies: Vec<Body>,
+    input_bodies: HashMap<String, Body>,
     metadata_by_handle: &mut HashMap<RigidBodyHandle, BodyMetadata>,
 ) -> (RigidBodySet, ColliderSet) {
     let mut body_set = RigidBodySet::new();
     let mut collider_set = ColliderSet::new();
 
-    for body in input_bodies {
-        let body_id = body.id.clone();
+    for (body_id, body) in input_bodies {
         let owner_id = body.owner_id.clone();
         let body_class = body.class.clone();
         let body_hp = body.hp.clone();

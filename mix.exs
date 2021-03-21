@@ -39,7 +39,8 @@ defmodule SettleIt.MixProject do
       {:jason, "~> 1.0"},
       {:plug_cowboy, "~> 2.0"},
       {:rustler, "~> 0.21.1"},
-      {:math, "~> 0.6.0"}
+      {:math, "~> 0.6.0"},
+      {:uuid, "~> 1.1"}
     ]
   end
 
