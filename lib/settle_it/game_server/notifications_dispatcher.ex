@@ -11,7 +11,7 @@ defmodule SettleIt.GameServer.NotificationsDispatcher do
       )
 
   def init(game_id) do
-    {:consumer, :ok, subscribe_to: [{String.to_atom("physics_simulator_" <> game_id), []}]}
+    {:consumer, :ok, subscribe_to: [{String.to_atom("state_producer_" <> game_id), []}]}
   end
 
   def handle_events(game_states, _from, state) do

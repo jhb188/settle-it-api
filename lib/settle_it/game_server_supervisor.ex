@@ -3,11 +3,12 @@ defmodule SettleIt.GameServerSupervisor do
 
   alias SettleIt.GameServer
   alias SettleIt.GameServer.NotificationsDispatcher
-  alias SettleIt.GameServer.PhysicsSimulator
   alias SettleIt.GameServer.StateProducer
 
   def start_link(game_id) do
-    Supervisor.start_link(__MODULE__, game_id, name: String.to_atom("game_server_supervisor_" <> game_id))
+    Supervisor.start_link(__MODULE__, game_id,
+      name: String.to_atom("game_server_supervisor_" <> game_id)
+    )
   end
 
   @impl true
@@ -15,7 +16,6 @@ defmodule SettleIt.GameServerSupervisor do
     children = [
       {GameServer, game_id},
       {StateProducer, game_id},
-      {PhysicsSimulator, game_id},
       {NotificationsDispatcher, game_id}
     ]
 

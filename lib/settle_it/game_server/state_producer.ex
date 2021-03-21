@@ -3,14 +3,19 @@ defmodule SettleIt.GameServer.StateProducer do
 
   alias SettleIt.GameServer.Engine
 
+  @physics_steps_per_second 60
+  @refresh_interval round(1000 / @physics_steps_per_second)
+
   def start_link(game_id),
     do:
       GenStage.start_link(__MODULE__, game_id, name: String.to_atom("state_producer_" <> game_id))
 
   @impl true
   def init(game_id) do
+    Process.send_after(self(), :step, @refresh_interval)
+
     {:producer_consumer, Engine.init(game_id),
-     subscribe_to: [{String.to_existing_atom(game_id), []}]}
+     subscribe_to: [{String.to_existing_atom(game_id), max_demand: 100}]}
   end
 
   @impl true
@@ -23,6 +28,31 @@ defmodule SettleIt.GameServer.StateProducer do
   @impl true
   def handle_cast({:new_state, new_state}, _state) do
     {:noreply, [], new_state}
+  end
+
+  @impl true
+  def handle_info(:step, nil) do
+    Process.send_after(self(), :step, @refresh_interval)
+
+    {:noreply, [], nil}
+  end
+
+  @impl true
+  def handle_info(:step, state) do
+    step_start = :os.system_time(:millisecond)
+    next_game_state = Engine.step(state)
+
+    step_time_elapsed = :os.system_time(:millisecond) - step_start
+
+    refresh_interval =
+      case @refresh_interval - step_time_elapsed do
+        next_interval when next_interval > 0 -> next_interval
+        _otherwise -> @refresh_interval
+      end
+
+    Process.send_after(self(), :step, refresh_interval)
+
+    {:noreply, [next_game_state], next_game_state}
   end
 
   defp apply_action({:player_join, player, pid}, state), do: Engine.add_player(state, player, pid)
