@@ -40,9 +40,18 @@ defmodule SettleIt.GameServer.Registry do
 
   defp get_game_server(game_id) do
     case GameSupervisor.start_game_server(game_id) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, {:already_started, pid}} -> {:ok, pid}
-      error -> error
+      {:ok, pid} ->
+        pid
+        |> Supervisor.which_children()
+        |> Enum.find_value(fn {process_name, pid, _, _} ->
+          if process_name == SettleIt.GameServer, do: {:ok, pid}
+        end)
+
+      {:error, {:already_started, pid}} ->
+        {:ok, pid}
+
+      error ->
+        error
     end
   end
 end

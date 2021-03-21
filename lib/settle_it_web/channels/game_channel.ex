@@ -1,14 +1,13 @@
 defmodule SettleItWeb.GameChannel do
   use SettleItWeb, :channel
 
-  alias SettleIt.GameServer.Notifications.GameUpdate
   alias SettleIt.GameServer.State
 
   def join("game:" <> game_id, id, socket) do
     with player <- %State.Player{name: "", id: id},
          socket <- init_socket(socket, game_id, player),
-         %State.Game{} = game_state <- join_game_server(socket) do
-      {:ok, GameUpdate.from_state(game_state), socket}
+         :ok <- join_game_server(socket) do
+      {:ok, :ok, socket}
     else
       nil -> {:error, :not_found}
       error -> error
@@ -92,30 +91,33 @@ defmodule SettleItWeb.GameChannel do
     |> assign(:game_id, game_id)
   end
 
-  defp game_server_pid() do
-    SettleIt.Supervisor
-    |> Supervisor.which_children()
-    |> Enum.find_value(fn {process_name, pid, _, _} ->
-      if process_name == SettleIt.GameServer.Registry, do: pid
-    end)
+  defp game_server_registry_pid() do
+    case Cachex.fetch(
+           :game_server_pids,
+           :game_server_registry,
+           fn _ ->
+             SettleIt.Supervisor
+             |> Supervisor.which_children()
+             |> Enum.find_value(fn {process_name, pid, _, _} ->
+               if process_name == SettleIt.GameServer.Registry, do: {:commit, pid}
+             end)
+           end,
+           ttl: 30000
+         ) do
+      {:ok, pid} -> pid
+      {:commit, pid} -> pid
+    end
   end
 
   defp notify_game_server(socket, msg) do
     GenServer.cast(
-      game_server_pid(),
-      {socket.assigns.game_id, msg}
-    )
-  end
-
-  defp call_game_server(socket, msg) do
-    GenServer.call(
-      game_server_pid(),
+      game_server_registry_pid(),
       {socket.assigns.game_id, msg}
     )
   end
 
   defp join_game_server(socket) do
-    call_game_server(
+    notify_game_server(
       socket,
       {:player_join, socket.assigns.player, self()}
     )

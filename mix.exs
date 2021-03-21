@@ -21,7 +21,7 @@ defmodule SettleIt.MixProject do
   def application do
     [
       mod: {SettleIt.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:cachex, :logger, :runtime_tools]
     ]
   end
 
@@ -38,9 +38,11 @@ defmodule SettleIt.MixProject do
       {:phoenix_pubsub, "~> 1.1"},
       {:jason, "~> 1.0"},
       {:plug_cowboy, "~> 2.0"},
+      {:gen_stage, "~> 1.0"},
       {:rustler, "~> 0.21.1"},
       {:math, "~> 0.6.0"},
-      {:uuid, "~> 1.1"}
+      {:uuid, "~> 1.1"},
+      {:cachex, "~> 3.3"}
     ]
   end
 
