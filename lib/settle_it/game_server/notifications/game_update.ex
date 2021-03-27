@@ -4,12 +4,12 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
 
   def from_state(%State.Game{} = game_state) do
     %{
-      # status: game_state.status,
-      # players:
-      #   game_state.players
-      #   |> Map.values()
-      #   |> Enum.map(&encode_player/1),
+      id: game_state.id,
+      status: game_state.status,
+      players: Enum.map(game_state.players, fn {_id, player} -> encode_player(player) end),
+      teams: Enum.map(game_state.teams, fn {_id, team} -> encode_team(team) end),
       bodies: Enum.map(game_state.bodies, fn {_id, body} -> encode_body(body) end),
+      topic: game_state.topic,
       last_updated: game_state.last_updated
     }
   end
@@ -18,6 +18,16 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
     %{
       id: player.id,
       name: player.name
+    }
+  end
+
+  defp encode_team(team) do
+    %{
+      id: team.id,
+      owner_id: team.owner_id,
+      cause: team.cause,
+      player_ids: MapSet.to_list(team.player_ids),
+      color: team.color
     }
   end
 

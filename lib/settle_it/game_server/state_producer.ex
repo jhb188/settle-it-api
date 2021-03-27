@@ -2,6 +2,7 @@ defmodule SettleIt.GameServer.StateProducer do
   use GenStage
 
   alias SettleIt.GameServer.Engine
+  alias SettleIt.GameServer.State
 
   @physics_steps_per_second 60
   @refresh_interval round(1000 / @physics_steps_per_second)
@@ -12,10 +13,15 @@ defmodule SettleIt.GameServer.StateProducer do
 
   @impl true
   def init(game_id) do
-    Process.send_after(self(), :step, @refresh_interval)
-
     {:producer_consumer, Engine.init(game_id),
-     subscribe_to: [{String.to_existing_atom(game_id), max_demand: 100}]}
+     subscribe_to: [{String.to_existing_atom(game_id), interval: @refresh_interval}]}
+  end
+
+  @impl true
+  def handle_events(actions, _from, %State.Game{status: :pending} = state) do
+    next_state = Enum.reduce(actions, state, &apply_action/2)
+
+    {:noreply, [next_state], next_state}
   end
 
   @impl true
@@ -27,25 +33,51 @@ defmodule SettleIt.GameServer.StateProducer do
 
   @impl true
   def handle_info(:step, state) do
-    step_start = :os.system_time(:millisecond)
+    timer = Process.send_after(self(), :step, @refresh_interval)
+
     next_game_state = Engine.step(state)
 
-    step_time_elapsed = :os.system_time(:millisecond) - step_start
-
-    refresh_interval =
-      case @refresh_interval - step_time_elapsed do
-        next_interval when next_interval > 0 -> next_interval
-        _otherwise -> @refresh_interval
-      end
-
-    Process.send_after(self(), :step, refresh_interval)
+    if next_game_state.status == :finished, do: Process.cancel_timer(timer)
 
     {:noreply, [next_game_state], next_game_state}
   end
 
+  @impl true
+  def handle_info(:kill_if_empty, %State.Game{players: players} = state) when players == %{} do
+    Process.exit(self(), :kill)
+
+    state
+  end
+
+  @impl true
+  def handle_info(:kill_if_empty, state), do: state
+
+  defp apply_action({:player_start_lobby, player, pid, topic}, state) do
+    state
+    |> Engine.add_player(player, pid)
+    |> Engine.update_topic(topic)
+  end
+
   defp apply_action({:player_join, player, pid}, state), do: Engine.add_player(state, player, pid)
 
-  defp apply_action({:player_leave, player_id}, state), do: Engine.remove_player(state, player_id)
+  defp apply_action({:player_leave, player_id}, state) do
+    case Engine.remove_player(state, player_id) do
+      %State.Game{players: players} when players == %{} ->
+        Process.send_after(self(), :kill_if_empty, 10_000)
+        state
+
+      state ->
+        state
+    end
+  end
+
+  defp apply_action({:player_update_name, player_id, name}, state) do
+    Engine.update_player_name(state, player_id, name)
+  end
+
+  defp apply_action({:player_join_team, player_id, team_id}, state) do
+    Engine.move_player_to_team(state, player_id, team_id)
+  end
 
   defp apply_action(
          {:player_move, player_id, coords},
@@ -75,7 +107,17 @@ defmodule SettleIt.GameServer.StateProducer do
     Engine.add_bullet(state, player_id, position, linvel)
   end
 
+  defp apply_action({:create_team, owner_id, team_cause}, state) do
+    Engine.create_team(state, owner_id, team_cause)
+  end
+
+  defp apply_action({:delete_team, team_id}, state) do
+    Engine.delete_team(state, team_id)
+  end
+
   defp apply_action(:start_game, state) do
+    Process.send_after(self(), :step, @refresh_interval)
+
     Engine.start(state)
   end
 

@@ -10,6 +10,29 @@ defmodule SettleIt.GameServer.Engine do
   @player_height 1.0
   @player_mass 100.0
   @bullet_mass 0.05
+  @team_colors [
+    "red",
+    "orange",
+    "yellow",
+    "green",
+    "blue",
+    "purple",
+    "brown",
+    "light-red",
+    "light-orange",
+    "light-yellow",
+    "light-green",
+    "light-blue",
+    "light-purple",
+    "light-brown",
+    "dark-red",
+    "dark-orange",
+    "dark-yellow",
+    "dark-green",
+    "dark-blue",
+    "dark-purple",
+    "dark-brown"
+  ]
 
   @doc """
   Initializes a State.Game
@@ -17,8 +40,7 @@ defmodule SettleIt.GameServer.Engine do
   def init(game_id) do
     %State.Game{
       id: game_id,
-      last_updated: :os.system_time(:millisecond),
-      bodies: Physics.init_world()
+      last_updated: :os.system_time(:millisecond)
     }
   end
 
@@ -26,7 +48,11 @@ defmodule SettleIt.GameServer.Engine do
   Starts the game
   """
   def start(%State.Game{} = state) do
-    %State.Game{state | status: :started}
+    player_ids = Map.keys(state.players)
+    player_bodies = get_spaced_player_bodies(player_ids)
+    world_bodies = Physics.init_world()
+
+    %State.Game{state | status: :playing, bodies: Map.merge(world_bodies, player_bodies)}
   end
 
   @doc """
@@ -36,11 +62,58 @@ defmodule SettleIt.GameServer.Engine do
     %State.Game{}
   end
 
+  def update_topic(%State.Game{} = state, topic) do
+    %State.Game{state | topic: topic}
+  end
+
+  def create_team(%State.Game{} = state, owner_id, cause) do
+    existing_team_causes = state.teams |> Map.values() |> Enum.map(& &1.cause)
+
+    if Enum.member?(existing_team_causes, cause) do
+      state
+    else
+      new_team = %State.Team{
+        id: UUID.uuid4(),
+        owner_id: owner_id,
+        cause: cause,
+        color: get_unused_team_color(state)
+      }
+
+      move_player_to_team(
+        %State.Game{state | teams: Map.put(state.teams, new_team.id, new_team)},
+        owner_id,
+        new_team.id
+      )
+    end
+  end
+
+  def delete_team(%State.Game{teams: teams} = state, team_id) do
+    %State.Game{state | teams: Map.delete(teams, team_id)}
+  end
+
+  def move_player_to_team(%State.Game{} = state, player_id, team_id) do
+    next_teams =
+      Enum.map(state.teams, fn {current_team_id, team} ->
+        {current_team_id,
+         %State.Team{
+           team
+           | player_ids:
+               case current_team_id do
+                 ^team_id -> MapSet.put(team.player_ids, player_id)
+                 _ -> MapSet.delete(team.player_ids, player_id)
+               end
+         }}
+      end)
+      |> Map.new()
+
+    %State.Game{state | teams: next_teams}
+  end
+
   @doc """
   Adds a player to a State.Game
   """
   def add_player(
-        %State.Game{players: players, bodies: bodies, status: status} = state,
+        %State.Game{players: players} = state,
         player,
         pid
       ) do
@@ -51,31 +124,26 @@ defmodule SettleIt.GameServer.Engine do
         pid: pid
       })
 
-    next_bodies =
-      case status do
-        :pending -> do_add_player(bodies, player.id)
-        _ -> bodies
-      end
-
-    %State.Game{state | players: next_players, bodies: next_bodies}
+    %State.Game{state | players: next_players}
   end
 
   @doc """
   Removes a player from a State.Game by player_id
   """
   def remove_player(
-        %State.Game{players: players, status: status, bodies: bodies} = state,
+        %State.Game{players: players} = state,
         player_id
       ) do
     next_players = Map.delete(players, player_id)
 
-    next_bodies =
-      case status do
-        :pending -> do_remove_player(bodies, player_id)
-        _ -> bodies
-      end
+    %State.Game{state | players: next_players}
+  end
 
-    %State.Game{state | players: next_players, bodies: next_bodies}
+  def update_player_name(%State.Game{players: players} = state, player_id, name) do
+    next_players =
+      Map.update!(players, player_id, fn player -> %State.Player{player | name: name} end)
+
+    %State.Game{state | players: next_players}
   end
 
   def move_player(%State.Game{bodies: bodies} = state, player_id, %{
@@ -130,29 +198,17 @@ defmodule SettleIt.GameServer.Engine do
 
     updated_bodies = Physics.step(bodies, dt_seconds)
 
-    %State.Game{
+    next_state = %State.Game{
       state
       | bodies: updated_bodies,
         last_updated: target_time
     }
-  end
 
-  def do_add_player(bodies, new_player_id) do
-    {players, nonplayers} = split_players_and_nonplayers(bodies)
-
-    player_ids =
-      [new_player_id | Map.keys(players)]
-      |> Enum.uniq()
-
-    Map.merge(nonplayers, get_spaced_player_bodies(player_ids))
-  end
-
-  def do_remove_player(bodies, player_id_to_remove) do
-    {players, nonplayers} = split_players_and_nonplayers(bodies)
-
-    player_ids = players |> Map.delete(player_id_to_remove) |> Map.keys()
-
-    Map.merge(nonplayers, get_spaced_player_bodies(player_ids))
+    if State.Game.won?(next_state) do
+      %State.Game{next_state | status: :finished}
+    else
+      next_state
+    end
   end
 
   defp get_spaced_player_bodies([]), do: %{}
@@ -188,15 +244,18 @@ defmodule SettleIt.GameServer.Engine do
     |> Map.new()
   end
 
-  defp split_players_and_nonplayers(bodies) do
-    {players, nonplayers} = Enum.split_with(bodies, fn {_id, body} -> body.class == :player end)
+  defp get_unused_team_color(%State.Game{teams: teams}) do
+    used_colors = Enum.map(teams, fn {_team_id, team} -> team.color end)
 
-    {Map.new(players), Map.new(nonplayers)}
+    team_colors =
+      if teams |> Map.values() |> length() |> odd? do
+        Enum.reverse(@team_colors)
+      else
+        @team_colors
+      end
+
+    Enum.find(team_colors, "red", fn color -> not Enum.member?(used_colors, color) end)
   end
 
-  @doc """
-  Starts the next round
-  """
-  def next_round(%State.Game{}) do
-  end
+  defp odd?(n), do: rem(n, 2) == 1
 end
