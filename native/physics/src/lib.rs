@@ -13,7 +13,7 @@ use rustler::{Env, NifResult, Term};
 use serde;
 use serde::{Deserialize, Serialize};
 use serde_rustler::{from_term, to_term};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 mod atoms {
@@ -48,6 +48,7 @@ enum BodyClass {
 #[serde(rename = "Elixir.SettleIt.GameServer.State.Body")]
 struct Body {
     id: String,
+    team_id: Option<String>,
     owner_id: Option<String>,
     translation: (f32, f32, f32),
     rotation: (f32, f32, f32),
@@ -62,6 +63,7 @@ struct Body {
 #[derive(Clone)]
 struct BodyMetadata {
     id: String,
+    team_id: Option<String>,
     owner_id: Option<String>,
     class: BodyClass,
     rotation: (f32, f32, f32),
@@ -76,6 +78,7 @@ struct BodyClassProperties {
 fn apply_jump<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
     let body: Body = from_term(args[0])?;
     let body_id = body.id.clone();
+    let team_id = body.team_id.clone();
     let owner_id = body.owner_id.clone();
     let body_rotation = body.rotation.clone();
     let body_hp = body.hp.clone();
@@ -102,6 +105,7 @@ fn apply_jump<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
         rigid_body,
         BodyMetadata {
             id: body_id,
+            team_id: team_id,
             owner_id: owner_id,
             class: BodyClass::Player,
             rotation: body_rotation,
@@ -116,6 +120,7 @@ fn init_world<'a>(env: Env<'a>, _args: &[Term<'a>]) -> NifResult<Term<'a>> {
     let origin_sphere_key = origin_sphere_id.clone();
     let origin_sphere = Body {
         id: origin_sphere_id,
+        team_id: None,
         owner_id: None,
         translation: (0.0, 0.0, 0.5),
         rotation: (0.0, 0.0, 0.0),
@@ -138,7 +143,20 @@ fn step<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
     let dt: f32 = from_term(args[1])?;
     let bodies: HashMap<String, Body> = step_bodies(bodies, dt);
 
-    to_term(env, bodies).map_err(|err| err.into())
+    let mut teams_alive = HashSet::new();
+
+    for (_id, body) in &bodies {
+        match (body.hp, &body.team_id) {
+            (0, _) => {}
+            (_nonzero_hp, team_id) => {
+                teams_alive.insert(team_id);
+            }
+        };
+    }
+
+    let is_won = teams_alive.len() < 2;
+
+    to_term(env, (bodies, is_won)).map_err(|err| err.into())
 }
 
 fn step_bodies(input_bodies: HashMap<String, Body>, dt: f32) -> HashMap<String, Body> {
@@ -219,16 +237,17 @@ fn handle_contact(
                 .get(&body_handle_b)
                 .expect("missing metadata for body handle");
 
-            let metadata_a_id = metadata_a.id.clone();
-            let metadata_b_id = metadata_b.id.clone();
+            let metadata_a_team_id = metadata_a.team_id.clone();
+            let metadata_b_team_id = metadata_b.team_id.clone();
 
             match (metadata_a.class, metadata_b.class) {
                 (BodyClass::Player, BodyClass::Bullet) => {
-                    if Some(metadata_a_id) != metadata_b.owner_id {
+                    if metadata_a_team_id != metadata_b.team_id {
                         metadata_by_handle.insert(
                             body_handle_a,
                             BodyMetadata {
                                 id: metadata_a.id.clone(),
+                                team_id: metadata_a.team_id.clone(),
                                 owner_id: metadata_a.owner_id.clone(),
                                 class: metadata_a.class,
                                 rotation: metadata_a.rotation,
@@ -240,11 +259,12 @@ fn handle_contact(
                     }
                 }
                 (BodyClass::Bullet, BodyClass::Player) => {
-                    if metadata_a.owner_id != Some(metadata_b_id) {
+                    if metadata_a.team_id != metadata_b_team_id {
                         metadata_by_handle.insert(
                             body_handle_b,
                             BodyMetadata {
                                 id: metadata_b.id.clone(),
+                                team_id: metadata_b.team_id.clone(),
                                 owner_id: metadata_b.owner_id.clone(),
                                 class: metadata_b.class,
                                 rotation: metadata_b.rotation,
@@ -280,6 +300,7 @@ fn get_body_sets(
 
     for (body_id, body) in input_bodies {
         let owner_id = body.owner_id.clone();
+        let team_id = body.team_id.clone();
         let body_class = body.class.clone();
         let body_hp = body.hp.clone();
         let body_rotation = body.rotation.clone();
@@ -291,6 +312,7 @@ fn get_body_sets(
             body_handle,
             BodyMetadata {
                 id: body_id,
+                team_id: team_id,
                 owner_id: owner_id,
                 class: body_class,
                 rotation: body_rotation,
@@ -397,6 +419,7 @@ fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, metadata: BodyMetada
 
     Body {
         id: metadata.id,
+        team_id: metadata.team_id,
         owner_id: metadata.owner_id,
         translation: (translation.x, translation.y, z_translation),
         rotation: (rotation.0, rotation.1, rotation.2),

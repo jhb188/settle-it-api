@@ -47,8 +47,8 @@ defmodule SettleIt.GameServer.Engine do
   Starts the game
   """
   def start(%State.Game{} = state) do
-    player_ids = Map.keys(state.players)
-    player_bodies = get_spaced_player_bodies(player_ids)
+    players = Map.values(state.players)
+    player_bodies = get_spaced_player_bodies(players)
     world_bodies = Physics.init_world()
 
     %State.Game{state | status: :playing, bodies: Map.merge(world_bodies, player_bodies)}
@@ -90,22 +90,11 @@ defmodule SettleIt.GameServer.Engine do
     %State.Game{state | teams: Map.delete(teams, team_id)}
   end
 
-  def move_player_to_team(%State.Game{} = state, player_id, team_id) do
-    next_teams =
-      Enum.map(state.teams, fn {current_team_id, team} ->
-        {current_team_id,
-         %State.Team{
-           team
-           | player_ids:
-               case current_team_id do
-                 ^team_id -> MapSet.put(team.player_ids, player_id)
-                 _ -> MapSet.delete(team.player_ids, player_id)
-               end
-         }}
-      end)
-      |> Map.new()
+  def move_player_to_team(%State.Game{players: players} = state, player_id, team_id) do
+    player = players[player_id]
+    next_players = Map.put(players, player_id, %State.Player{player | team_id: team_id})
 
-    %State.Game{state | teams: next_teams}
+    %State.Game{state | players: next_players}
   end
 
   @doc """
@@ -174,17 +163,23 @@ defmodule SettleIt.GameServer.Engine do
     %State.Game{state | bodies: next_bodies}
   end
 
-  def add_bullet(%State.Game{bodies: bodies} = state, player_id, position, linvel) do
+  def add_bullet(
+        %State.Game{bodies: bodies, players: players} = state,
+        player_id,
+        position,
+        linvel
+      ) do
     bullet_id = UUID.uuid4()
 
     bullet = %State.Body{
       id: bullet_id,
+      owner_id: player_id,
+      team_id: players[player_id].team_id,
       translation: {position.x, position.y, position.z},
       linvel: {linvel.x / 1, linvel.y / 1, linvel.z / 1},
       rotation: {0.0, 0.0, 0.0},
       mass: @bullet_mass,
-      class: :bullet,
-      owner_id: player_id
+      class: :bullet
     }
 
     %State.Game{state | bodies: Map.put(bodies, bullet_id, bullet)}
@@ -195,7 +190,7 @@ defmodule SettleIt.GameServer.Engine do
     dt = target_time - last_updated
     dt_seconds = dt / 1000
 
-    updated_bodies = Physics.step(bodies, dt_seconds)
+    {updated_bodies, won?} = Physics.step(bodies, dt_seconds)
 
     next_state = %State.Game{
       state
@@ -203,7 +198,7 @@ defmodule SettleIt.GameServer.Engine do
         last_updated: target_time
     }
 
-    if State.Game.won?(next_state) do
+    if won? do
       %State.Game{next_state | status: :finished}
     else
       next_state
@@ -212,14 +207,14 @@ defmodule SettleIt.GameServer.Engine do
 
   defp get_spaced_player_bodies([]), do: %{}
 
-  defp get_spaced_player_bodies(player_ids) do
-    num_players = length(player_ids)
+  defp get_spaced_player_bodies(players) do
+    num_players = length(players)
     circumference = 2 * :math.pi()
     angle_size = circumference / num_players
 
-    player_ids
+    players
     |> Enum.with_index()
-    |> Enum.map(fn {player_id, i} ->
+    |> Enum.map(fn {player, i} ->
       current_angle = angle_size * i
       x = @player_distance_from_center * :math.cos(current_angle)
       y = @player_distance_from_center * :math.sin(current_angle)
@@ -230,9 +225,10 @@ defmodule SettleIt.GameServer.Engine do
       # orientation face the origin
       rotation = Math.rad2deg(current_angle + circumference / 4)
 
-      {player_id,
+      {player.id,
        %State.Body{
-         id: player_id,
+         id: player.id,
+         team_id: player.team_id,
          translation: {x, y, z},
          rotation: {0.0, 0.0, rotation},
          mass: @player_mass,

@@ -27,7 +27,8 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
   defp encode_player(player) do
     %{
       id: player.id,
-      name: player.name
+      name: player.name,
+      team_id: player.team_id
     }
   end
 
@@ -36,7 +37,6 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
       id: team.id,
       owner_id: team.owner_id,
       cause: team.cause,
-      player_ids: MapSet.to_list(team.player_ids),
       color: team.color
     }
   end
@@ -44,6 +44,7 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
   defp encode_body(%State.Body{} = body) do
     %{
       id: body.id,
+      team_id: body.team_id,
       translation: encode_vec3(body.translation),
       rotation: encode_rotation_vector(body.rotation),
       linvel: encode_vec3(body.linvel),
