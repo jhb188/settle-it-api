@@ -120,6 +120,12 @@ defmodule SettleItWeb.GameChannel do
     {:noreply, socket}
   end
 
+  def handle_info({:bodies_updated, bodies_update}, socket) do
+    push(socket, "bodies:updated", bodies_update)
+
+    {:noreply, socket}
+  end
+
   defp init_socket(socket, game_id, %State.Player{} = player) do
     socket
     |> assign(:player, player)

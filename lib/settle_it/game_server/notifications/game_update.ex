@@ -1,6 +1,5 @@
 defmodule SettleIt.GameServer.Notifications.GameUpdate do
   alias SettleIt.GameServer.State
-  alias SettleIt.GameServer.Physics.Body
 
   def from_state(%State.Game{} = game_state) do
     %{
@@ -8,10 +7,21 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
       status: game_state.status,
       players: Enum.map(game_state.players, fn {_id, player} -> encode_player(player) end),
       teams: Enum.map(game_state.teams, fn {_id, team} -> encode_team(team) end),
-      bodies: Enum.map(game_state.bodies, fn {_id, body} -> encode_body(body) end),
+      bodies: encode_bodies(game_state),
       topic: game_state.topic,
       last_updated: game_state.last_updated
     }
+  end
+
+  def bodies_update_from_state(%State.Game{} = game_state) do
+    %{
+      bodies: encode_bodies(game_state),
+      last_updated: game_state.last_updated
+    }
+  end
+
+  defp encode_bodies(game_state) do
+    Enum.map(game_state.bodies, fn {_id, body} -> encode_body(body) end)
   end
 
   defp encode_player(player) do
@@ -31,7 +41,7 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
     }
   end
 
-  defp encode_body(%Body{} = body) do
+  defp encode_body(%State.Body{} = body) do
     %{
       id: body.id,
       translation: encode_vec3(body.translation),

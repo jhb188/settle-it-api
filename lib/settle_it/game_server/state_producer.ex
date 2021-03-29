@@ -21,7 +21,7 @@ defmodule SettleIt.GameServer.StateProducer do
   def handle_events(actions, _from, %State.Game{status: :pending} = state) do
     next_state = Enum.reduce(actions, state, &apply_action/2)
 
-    {:noreply, [next_state], next_state}
+    {:noreply, [{:state_update, next_state}], next_state}
   end
 
   @impl true
@@ -37,20 +37,30 @@ defmodule SettleIt.GameServer.StateProducer do
 
     next_game_state = Engine.step(state)
 
-    if next_game_state.status == :finished, do: Process.cancel_timer(timer)
+    event =
+      case next_game_state.status do
+        :playing ->
+          {:bodies_update, next_game_state}
 
-    {:noreply, [next_game_state], next_game_state}
+        :finished ->
+          Process.cancel_timer(timer)
+          {:state_update, next_game_state}
+      end
+
+    {:noreply, [event], next_game_state}
   end
 
   @impl true
   def handle_info(:kill_if_empty, %State.Game{players: players} = state) when players == %{} do
     Process.exit(self(), :kill)
 
-    state
+    {:noreply, [], state}
   end
 
   @impl true
-  def handle_info(:kill_if_empty, state), do: state
+  def handle_info(:kill_if_empty, state) do
+    {:noreply, [], state}
+  end
 
   defp apply_action({:player_start_lobby, player, pid, topic}, state) do
     state

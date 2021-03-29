@@ -1,7 +1,7 @@
 defmodule SettleIt.GameServer.Physics do
   use Rustler, otp_app: :settle_it, crate: "physics"
 
-  alias SettleIt.GameServer.Physics.Body
+  alias SettleIt.GameServer.State.Body
 
   @spec init_world() :: [Body]
   def init_world(), do: error()

@@ -1,7 +1,6 @@
 defmodule SettleIt.GameServer.Engine do
   alias SettleIt.GameServer.State
   alias SettleIt.GameServer.Physics
-  alias SettleIt.GameServer.Physics.Body
 
   @type player_id :: String.t()
   @type coordinate :: non_neg_integer()
@@ -154,7 +153,7 @@ defmodule SettleIt.GameServer.Engine do
       Map.update!(bodies, player_id, fn body ->
         # do not allow move requests to reposition player_height
         {_current_x, _current_y, current_z} = body.translation
-        %Physics.Body{body | translation: {x / 1, y / 1, current_z}}
+        %State.Body{body | translation: {x / 1, y / 1, current_z}}
       end)
 
     %State.Game{state | bodies: next_bodies}
@@ -163,7 +162,7 @@ defmodule SettleIt.GameServer.Engine do
   def rotate_player(%State.Game{bodies: bodies} = state, player_id, angle) do
     next_bodies =
       Map.update!(bodies, player_id, fn body ->
-        %Physics.Body{body | rotation: {0.0, 0.0, angle / 1}}
+        %State.Body{body | rotation: {0.0, 0.0, angle / 1}}
       end)
 
     %State.Game{state | bodies: next_bodies}
@@ -178,7 +177,7 @@ defmodule SettleIt.GameServer.Engine do
   def add_bullet(%State.Game{bodies: bodies} = state, player_id, position, linvel) do
     bullet_id = UUID.uuid4()
 
-    bullet = %Body{
+    bullet = %State.Body{
       id: bullet_id,
       translation: {position.x, position.y, position.z},
       linvel: {linvel.x / 1, linvel.y / 1, linvel.z / 1},
@@ -232,7 +231,7 @@ defmodule SettleIt.GameServer.Engine do
       rotation = Math.rad2deg(current_angle + circumference / 4)
 
       {player_id,
-       %Body{
+       %State.Body{
          id: player_id,
          translation: {x, y, z},
          rotation: {0.0, 0.0, rotation},

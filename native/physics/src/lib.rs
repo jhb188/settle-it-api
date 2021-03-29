@@ -45,7 +45,7 @@ enum BodyClass {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(rename = "Elixir.SettleIt.GameServer.Physics.Body")]
+#[serde(rename = "Elixir.SettleIt.GameServer.State.Body")]
 struct Body {
     id: String,
     owner_id: Option<String>,

@@ -1,4 +1,4 @@
-defmodule SettleIt.GameServer.Physics.Body do
+defmodule SettleIt.GameServer.State.Body do
   defstruct id: nil,
             translation: {0.0, 0.0, 0.0},
             rotation: {0.0, 0.0, 0.0},
