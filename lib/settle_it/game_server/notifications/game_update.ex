@@ -7,21 +7,26 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
       status: game_state.status,
       players: Enum.map(game_state.players, fn {_id, player} -> encode_player(player) end),
       teams: Enum.map(game_state.teams, fn {_id, team} -> encode_team(team) end),
-      bodies: encode_bodies(game_state),
+      bodies: encode_bodies(game_state.bodies),
       topic: game_state.topic,
       last_updated: game_state.last_updated
     }
   end
 
   def bodies_update_from_state(%State.Game{} = game_state) do
+    bodies =
+      game_state.bodies
+      |> Enum.reject(fn {_body_id, body} -> body.class == :obstacle end)
+      |> encode_bodies()
+
     %{
-      bodies: encode_bodies(game_state),
+      bodies: bodies,
       last_updated: game_state.last_updated
     }
   end
 
-  defp encode_bodies(game_state) do
-    Enum.map(game_state.bodies, fn {_id, body} -> encode_body(body) end)
+  defp encode_bodies(bodies) do
+    Enum.map(bodies, fn {_id, body} -> encode_body(body) end)
   end
 
   defp encode_player(player) do
