@@ -11,13 +11,6 @@ defmodule SettleIt.GameServer.Engine do
   @bullet_mass 0.05
   @bullet_size 0.10
   @team_colors [
-    "red",
-    "orange",
-    "yellow",
-    "green",
-    "blue",
-    "purple",
-    "brown",
     "light-red",
     "light-orange",
     "light-yellow",
@@ -25,6 +18,13 @@ defmodule SettleIt.GameServer.Engine do
     "light-blue",
     "light-purple",
     "light-brown",
+    "red",
+    "orange",
+    "yellow",
+    "green",
+    "blue",
+    "purple",
+    "brown",
     "dark-red",
     "dark-orange",
     "dark-yellow",
