@@ -6,9 +6,10 @@ defmodule SettleIt.GameServer.Engine do
   @type coordinate :: non_neg_integer()
 
   @player_distance_from_center 50.0
-  @player_height 1.0
+  @player_height 2.0
   @player_mass 100.0
   @bullet_mass 0.05
+  @bullet_size 0.10
   @team_colors [
     "red",
     "orange",
@@ -32,6 +33,14 @@ defmodule SettleIt.GameServer.Engine do
     "dark-purple",
     "dark-brown"
   ]
+  @body_classes [
+    :player,
+    :bullet,
+    :test,
+    :obstacle
+  ]
+
+  def body_classes, do: @body_classes
 
   @doc """
   Initializes a State.Game
@@ -158,7 +167,7 @@ defmodule SettleIt.GameServer.Engine do
   end
 
   def jump_player(%State.Game{bodies: bodies} = state, player_id) do
-    next_bodies = Map.update!(bodies, player_id, &Physics.apply_jump/1)
+    next_bodies = Map.update!(bodies, player_id, &apply_jump/1)
 
     %State.Game{state | bodies: next_bodies}
   end
@@ -177,6 +186,7 @@ defmodule SettleIt.GameServer.Engine do
       team_id: players[player_id].team_id,
       translation: {position.x, position.y, position.z},
       linvel: {linvel.x / 1, linvel.y / 1, linvel.z / 1},
+      dimensions: {@bullet_size, @bullet_size, @bullet_size},
       rotation: {0.0, 0.0, 0.0},
       mass: @bullet_mass,
       class: :bullet
@@ -231,6 +241,7 @@ defmodule SettleIt.GameServer.Engine do
          team_id: player.team_id,
          translation: {x, y, z},
          rotation: {0.0, 0.0, rotation},
+         dimensions: {0.0, 0.50, 2.0},
          mass: @player_mass,
          class: :player,
          hp: 10
@@ -253,4 +264,17 @@ defmodule SettleIt.GameServer.Engine do
   end
 
   defp odd?(n), do: rem(n, 2) == 1
+
+  defp apply_jump(%State.Body{} = player_body) do
+    if can_jump?(player_body) do
+      {linvelx, linvely, _linvelz} = player_body.linvel
+
+      %State.Body{player_body | linvel: {linvelx, linvely, 10.0}}
+    else
+      player_body
+    end
+  end
+
+  defp can_jump?(%State.Body{linvel: {_x, _y, 0.0}}), do: true
+  defp can_jump?(_body), do: false
 end

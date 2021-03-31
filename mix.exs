@@ -64,11 +64,12 @@ defmodule SettleIt.MixProject do
     [
       physics: [
         path: "native/physics",
-        mode: rustc_mode(Mix.env())
+        mode: rustc_mode(Mix.env(), System.get_env("RUST_ENV"))
       ]
     ]
   end
 
-  defp rustc_mode(:prod), do: :release
-  defp rustc_mode(_), do: :debug
+  defp rustc_mode(:prod, _), do: :release
+  defp rustc_mode(_, "prod"), do: :release
+  defp rustc_mode(_, _), do: :debug
 end

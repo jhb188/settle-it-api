@@ -3,6 +3,7 @@ use rapier3d::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
 extern crate rustler;
 
 use crossbeam;
+use rand::Rng;
 use rapier3d::dynamics::{BodyStatus, RigidBody, RigidBodyBuilder, RigidBodyHandle};
 use rapier3d::geometry::{
     BroadPhase, Collider, ColliderBuilder, ColliderSet, ContactEvent, NarrowPhase, SharedShape,
@@ -26,7 +27,6 @@ mod atoms {
 rustler_export_nifs! {
     "Elixir.SettleIt.GameServer.Physics",
     [
-    ("apply_jump", 1, apply_jump),
     ("step", 2, step),
     ("init_world", 0, init_world)
     ],
@@ -42,6 +42,8 @@ enum BodyClass {
     Bullet,
     #[serde(rename = "test")]
     Test,
+    #[serde(rename = "obstacle")]
+    Obstacle,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -54,6 +56,7 @@ struct Body {
     rotation: (f32, f32, f32),
     linvel: (f32, f32, f32),
     angvel: (f32, f32, f32),
+    dimensions: (f32, f32, f32),
     mass: f32,
     #[serde(rename = "class")]
     class: BodyClass,
@@ -67,73 +70,32 @@ struct BodyMetadata {
     owner_id: Option<String>,
     class: BodyClass,
     rotation: (f32, f32, f32),
+    dimensions: (f32, f32, f32),
     hp: i32,
 }
 
-struct BodyClassProperties {
-    mass: f32,
-    height: f32,
-}
-
-fn apply_jump<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
-    let body: Body = from_term(args[0])?;
-    let body_id = body.id.clone();
-    let team_id = body.team_id.clone();
-    let owner_id = body.owner_id.clone();
-    let body_rotation = body.rotation.clone();
-    let body_hp = body.hp.clone();
-
-    let rigid_body: RigidBody = body_to_rigid_body(body);
-    let mut body_set = RigidBodySet::new();
-
-    let rigid_body = if can_player_jump(&rigid_body) {
-        let mut collider_set = ColliderSet::new();
-        let collider = get_collider_for_body_class(BodyClass::Player);
-        let body_handle = body_set.insert(rigid_body);
-        collider_set.insert(collider, body_handle, &mut body_set);
-
-        let rigid_body_to_jump = body_set.get_mut(body_handle).unwrap();
-        let impulse = Vector3::z() * 1000.0;
-        rigid_body_to_jump.apply_impulse(impulse, true);
-
-        rigid_body_to_jump
-    } else {
-        &rigid_body
-    };
-
-    let body = rigid_body_to_body(
-        rigid_body,
-        BodyMetadata {
-            id: body_id,
-            team_id: team_id,
-            owner_id: owner_id,
-            class: BodyClass::Player,
-            rotation: body_rotation,
-            hp: body_hp,
-        },
-    );
-    to_term(env, body).map_err(|err| err.into())
-}
+const ARENA_WIDTH: f32 = 200.0;
 
 fn init_world<'a>(env: Env<'a>, _args: &[Term<'a>]) -> NifResult<Term<'a>> {
-    let origin_sphere_id = Uuid::new_v4().to_string();
-    let origin_sphere_key = origin_sphere_id.clone();
-    let origin_sphere = Body {
-        id: origin_sphere_id,
+    let mut initial_bodies: HashMap<String, Body> = HashMap::new();
+
+    let floor = Body {
+        id: String::from("floor"),
         team_id: None,
         owner_id: None,
-        translation: (0.0, 0.0, 0.5),
+        translation: (0.0, 0.0, -2.5),
         rotation: (0.0, 0.0, 0.0),
         linvel: (0.0, 0.0, 0.0),
         angvel: (0.0, 0.0, 0.0),
-        mass: 100.0,
-        class: BodyClass::Test,
+        dimensions: (ARENA_WIDTH + 0.1, ARENA_WIDTH + 0.1, 5.0),
+        mass: 0.0,
+        class: BodyClass::Obstacle,
         hp: 0,
     };
 
-    let initial_bodies: HashMap<String, Body> = vec![(origin_sphere_key, origin_sphere)]
-        .into_iter()
-        .collect();
+    initial_bodies.insert(String::from("floor"), floor);
+
+    seed_obstacles(&mut initial_bodies);
 
     to_term(env, initial_bodies).map_err(|err| err.into())
 }
@@ -201,12 +163,11 @@ fn step_bodies(input_bodies: HashMap<String, Body>, dt: f32) -> HashMap<String, 
         .iter()
         .filter_map(|(handle, body)| {
             let metadata = pop_body_metadata(&handle, &mut metadata_by_handle);
-            let body_metadata = metadata.clone();
-            let body_id = body_metadata.id.clone();
-            if is_stale(body, metadata) {
+            let body_id = metadata.id.clone();
+            if is_stale(body, &metadata) {
                 None
             } else {
-                Some((body_id, rigid_body_to_body(body, body_metadata)))
+                Some((body_id, rigid_body_to_body(body, &metadata)))
             }
         })
         .collect()
@@ -232,10 +193,12 @@ fn handle_contact(
 
             let metadata_a = metadata_by_handle
                 .get(&body_handle_a)
-                .expect("missing metadata for body handle");
+                .expect("missing metadata for body handle")
+                .clone();
             let metadata_b = metadata_by_handle
                 .get(&body_handle_b)
-                .expect("missing metadata for body handle");
+                .expect("missing metadata for body handle")
+                .clone();
 
             let metadata_a_team_id = metadata_a.team_id.clone();
             let metadata_b_team_id = metadata_b.team_id.clone();
@@ -251,6 +214,7 @@ fn handle_contact(
                                 owner_id: metadata_a.owner_id.clone(),
                                 class: metadata_a.class,
                                 rotation: metadata_a.rotation,
+                                dimensions: metadata_a.dimensions,
                                 hp: std::cmp::max(metadata_a.hp - 1, 0),
                             },
                         );
@@ -268,6 +232,7 @@ fn handle_contact(
                                 owner_id: metadata_b.owner_id.clone(),
                                 class: metadata_b.class,
                                 rotation: metadata_b.rotation,
+                                dimensions: metadata_b.dimensions,
                                 hp: std::cmp::max(metadata_b.hp - 1, 0),
                             },
                         );
@@ -298,25 +263,21 @@ fn get_body_sets(
     let mut body_set = RigidBodySet::new();
     let mut collider_set = ColliderSet::new();
 
-    for (body_id, body) in input_bodies {
-        let owner_id = body.owner_id.clone();
-        let team_id = body.team_id.clone();
-        let body_class = body.class.clone();
-        let body_hp = body.hp.clone();
-        let body_rotation = body.rotation.clone();
+    for (_body_id, body) in &input_bodies {
         let rigid_body = body_to_rigid_body(body);
-        let collider = get_collider_for_body_class(body_class);
+        let collider = get_collider_for_body(body);
         let body_handle = body_set.insert(rigid_body);
         collider_set.insert(collider, body_handle, &mut body_set);
         metadata_by_handle.insert(
             body_handle,
             BodyMetadata {
-                id: body_id,
-                team_id: team_id,
-                owner_id: owner_id,
-                class: body_class,
-                rotation: body_rotation,
-                hp: body_hp,
+                id: body.id.clone(),
+                team_id: body.team_id.clone(),
+                owner_id: body.owner_id.clone(),
+                class: body.class,
+                rotation: body.rotation,
+                dimensions: body.dimensions,
+                hp: body.hp,
             },
         );
     }
@@ -324,28 +285,26 @@ fn get_body_sets(
     (body_set, collider_set)
 }
 
-fn body_to_rigid_body(body: Body) -> RigidBody {
+fn body_to_rigid_body(body: &Body) -> RigidBody {
     match body.class {
         BodyClass::Player => body_to_dynamic_rigid_body(body),
         BodyClass::Bullet => body_to_dynamic_rigid_body(body),
         BodyClass::Test => body_to_dynamic_rigid_body(body),
+        BodyClass::Obstacle => body_to_static_rigid_body(body),
     }
 }
 
-fn body_to_dynamic_rigid_body(body: Body) -> RigidBody {
+fn body_to_dynamic_rigid_body(body: &Body) -> RigidBody {
     let (transx, transy, transz) = body.translation;
     let (linvelx, linvely, linvelz) = body.linvel;
-    let (_rotx, _roty, rotz) = body.rotation;
     let (angvelx, angvely, angvelz) = body.angvel;
-    let physics_properties = get_physics_properties_for_class(body.class);
 
     let base_rigid_body_builder = RigidBodyBuilder::new(BodyStatus::Dynamic)
         .translation(transx, transy, transz)
-        .rotation(Vector3::z() * rotz)
         .lock_rotations()
         .linvel(linvelx, linvely, linvelz)
         .angvel(Vector3::new(angvelx, angvely, angvelz))
-        .mass(physics_properties.mass);
+        .mass(body.mass);
 
     let rigid_body_builder = match body.class {
         BodyClass::Player => base_rigid_body_builder.sleeping(body.hp == 0),
@@ -355,41 +314,21 @@ fn body_to_dynamic_rigid_body(body: Body) -> RigidBody {
     rigid_body_builder.build()
 }
 
-fn body_to_static_rigid_body(body: Body) -> RigidBody {
+fn body_to_static_rigid_body(body: &Body) -> RigidBody {
     let (transx, transy, transz) = body.translation;
     let (_rotx, _roty, rotz) = body.rotation;
-    let physics_properties = get_physics_properties_for_class(body.class);
 
     RigidBodyBuilder::new(BodyStatus::Static)
         .translation(transx, transy, transz)
         .rotation(Vector3::z() * rotz)
         .lock_rotations()
-        .mass(physics_properties.mass)
+        .mass(body.mass)
         .build()
 }
 
-fn get_physics_properties_for_class(body_class: BodyClass) -> BodyClassProperties {
-    match body_class {
-        BodyClass::Player => BodyClassProperties {
-            mass: 100.0,
-            height: 2.0,
-        },
-        BodyClass::Bullet => BodyClassProperties {
-            mass: 0.05,
-            height: 0.10,
-        },
-        BodyClass::Test => BodyClassProperties {
-            mass: 100.0,
-            height: 1.0,
-        },
-    }
-}
-
-fn is_stale(body: &rapier3d::dynamics::RigidBody, metadata: BodyMetadata) -> bool {
-    let class = metadata.class;
-
-    match class {
-        BodyClass::Bullet => is_on_floor(body, class) || is_at_rest(body),
+fn is_stale(body: &rapier3d::dynamics::RigidBody, metadata: &BodyMetadata) -> bool {
+    match metadata.class {
+        BodyClass::Bullet => is_on_floor(body, metadata) || is_at_rest(body),
         _ => false,
     }
 }
@@ -400,63 +339,149 @@ fn is_at_rest(body: &rapier3d::dynamics::RigidBody) -> bool {
     linvel.x.round() == 0.0 && linvel.y.round() == 0.0 && linvel.z.round() == 0.0
 }
 
-fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, metadata: BodyMetadata) -> Body {
+fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, metadata: &BodyMetadata) -> Body {
     let orientation = body.position();
     let translation = orientation.translation;
     let rotation = metadata.rotation;
     let linvel = body.linvel();
     let angvel = body.angvel();
-    let body_class = metadata.class;
-    let body_class_properties = get_physics_properties_for_class(body_class);
 
     // clamp to floor
     let (z_translation, z_vel) =
-        if body.is_dynamic() && is_on_floor(body, body_class) && is_body_falling(body) {
-            (body_class_properties.height / 2.0, 0.0)
+        if body.is_dynamic() && is_on_floor(body, metadata) && is_falling(body) {
+            (metadata.dimensions.2 / 2.0, 0.0)
         } else {
             (translation.z, linvel.z)
         };
 
     Body {
-        id: metadata.id,
-        team_id: metadata.team_id,
-        owner_id: metadata.owner_id,
+        id: metadata.id.clone(),
+        team_id: metadata.team_id.clone(),
+        owner_id: metadata.owner_id.clone(),
         translation: (translation.x, translation.y, z_translation),
         rotation: (rotation.0, rotation.1, rotation.2),
         linvel: (linvel.x, linvel.y, z_vel),
         angvel: (angvel.x, angvel.y, angvel.z),
+        dimensions: metadata.dimensions,
         mass: body.mass(),
         class: metadata.class,
         hp: metadata.hp,
     }
 }
 
-fn is_on_floor(body: &rapier3d::dynamics::RigidBody, body_class: BodyClass) -> bool {
-    let orientation = body.position();
-    let translation = orientation.translation;
+fn is_on_floor(body: &rapier3d::dynamics::RigidBody, metadata: &BodyMetadata) -> bool {
+    let position = body.position();
+    let translation = position.translation;
     let origin_height = translation.z;
-    let object_height = get_physics_properties_for_class(body_class).height;
+    let object_height = metadata.dimensions.2;
 
     origin_height <= (object_height / 2.0)
 }
 
-fn is_body_falling(body: &rapier3d::dynamics::RigidBody) -> bool {
+fn is_falling(body: &rapier3d::dynamics::RigidBody) -> bool {
     let linvel = body.linvel();
 
     linvel.z <= 0.0
 }
 
-fn can_player_jump(body: &rapier3d::dynamics::RigidBody) -> bool {
-    is_on_floor(body, BodyClass::Player) && is_body_falling(body)
+fn get_collider_for_body(body: &Body) -> Collider {
+    let height = body.dimensions.2;
+    match body.class {
+        BodyClass::Player => ColliderBuilder::new(SharedShape::cylinder(height, 0.50))
+            .density(0.0)
+            .build(),
+        BodyClass::Bullet => ColliderBuilder::new(SharedShape::ball(height / 2.0))
+            .density(0.0)
+            .build(),
+        BodyClass::Test => ColliderBuilder::new(SharedShape::ball(height / 2.0))
+            .density(0.0)
+            .build(),
+        BodyClass::Obstacle => ColliderBuilder::new(SharedShape::cuboid(
+            body.dimensions.0 / 2.0,
+            body.dimensions.1 / 2.0,
+            body.dimensions.2 / 2.0,
+        ))
+        .density(0.0)
+        .build(),
+    }
 }
 
-fn get_collider_for_body_class(body_class: BodyClass) -> Collider {
-    let body_class_properties = get_physics_properties_for_class(body_class);
-    let height = body_class_properties.height;
+fn body_overlaps_existing_bodies(body: &Body, bodies: &HashMap<String, Body>) -> bool {
+    let mut overlaps = false;
+    for (_k, current_body) in bodies {
+        if bounding_cubes_collide(body, current_body) {
+            overlaps = true;
+            break;
+        }
+    }
 
-    match body_class {
-        BodyClass::Player => ColliderBuilder::new(SharedShape::cylinder(height, 0.50)).build(),
-        BodyClass::Bullet => ColliderBuilder::new(SharedShape::ball(height / 2.0)).build(),
-        BodyClass::Test => ColliderBuilder::new(SharedShape::ball(height / 2.0)).build(),
+    overlaps
+}
+
+fn bounding_cubes_collide(body_a: &Body, body_b: &Body) -> bool {
+    let body_a_x_size = body_a.dimensions.0;
+    let body_a_x_min = body_a.translation.0;
+    let body_a_x_max = body_a_x_min + body_a_x_size;
+    let body_b_x_size = body_b.dimensions.0;
+    let body_b_x_min = body_b.translation.0;
+    let body_b_x_max = body_b_x_min + body_b_x_size;
+
+    let body_a_y_size = body_a.dimensions.1;
+    let body_a_y_min = body_a.translation.1;
+    let body_a_y_max = body_a_y_min + body_a_y_size;
+    let body_b_y_size = body_b.dimensions.1;
+    let body_b_y_min = body_b.translation.1;
+    let body_b_y_max = body_b_y_min + body_b_y_size;
+
+    let body_a_z_size = body_a.dimensions.2;
+    let body_a_z_min = body_a.translation.2;
+    let body_a_z_max = body_a_z_min + body_a_z_size;
+    let body_b_z_size = body_b.dimensions.2;
+    let body_b_z_min = body_b.translation.2;
+    let body_b_z_max = body_b_z_min + body_b_z_size;
+
+    (body_a_x_min <= body_b_x_max && body_a_x_max >= body_b_x_min)
+        && (body_a_y_min <= body_b_y_max && body_a_y_max >= body_b_y_min)
+        && (body_a_z_min <= body_b_z_max && body_a_z_max >= body_b_z_min)
+}
+
+fn get_random_obstacle() -> Body {
+    let mut rng = rand::thread_rng();
+    let margin = 25.0;
+    let position_max = (ARENA_WIDTH / 2.0) - margin;
+    let position_min = -position_max;
+    let position_x = rng.gen_range(position_min..position_max);
+    let position_y = rng.gen_range(position_min..position_max);
+    let length = rng.gen_range(1.0..5.0);
+    let width = rng.gen_range(1.0..5.0);
+    let height = rng.gen_range(0.2..5.0);
+    Body {
+        id: Uuid::new_v4().to_string(),
+        team_id: None,
+        owner_id: None,
+        translation: (position_x, position_y, height / 2.0),
+        rotation: (0.0, 0.0, 0.0),
+        linvel: (0.0, 0.0, 0.0),
+        angvel: (0.0, 0.0, 0.0),
+        dimensions: (length, width, height),
+        mass: 100.0,
+        class: BodyClass::Obstacle,
+        hp: 0,
+    }
+}
+
+fn seed_obstacle_in_open_space(bodies: &mut HashMap<String, Body>) {
+    let obstacle = get_random_obstacle();
+
+    if !body_overlaps_existing_bodies(&obstacle, bodies) {
+        bodies.insert(obstacle.id.clone(), obstacle);
+    } else {
+        seed_obstacle_in_open_space(bodies);
+    }
+}
+
+fn seed_obstacles(bodies: &mut HashMap<String, Body>) {
+    for _ in 0..50 {
+        seed_obstacle_in_open_space(bodies);
     }
 }

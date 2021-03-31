@@ -44,14 +44,14 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
   defp encode_body(%State.Body{} = body) do
     %{
       id: body.id,
-      team_id: body.team_id,
-      translation: encode_vec3(body.translation),
-      rotation: encode_rotation_vector(body.rotation),
-      linvel: encode_vec3(body.linvel),
-      angvel: encode_vec3(body.angvel),
-      mass: body.mass,
-      class: body.class,
-      owner_id: body.owner_id,
+      tid: body.team_id,
+      tra: encode_vec3(body.translation),
+      rot: encode_rotation_vector(body.rotation),
+      lv: encode_vec3(body.linvel),
+      av: encode_vec3(body.angvel),
+      d: encode_vec3(body.dimensions),
+      m: body.mass,
+      cl: body.class,
       hp: body.hp
     }
   end

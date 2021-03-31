@@ -9,8 +9,5 @@ defmodule SettleIt.GameServer.Physics do
   @spec step(bodies :: [Body], dt :: float()) :: [Body]
   def step(_bodies, _dt), do: error()
 
-  @spec apply_jump(body :: Body) :: Body
-  def apply_jump(_body), do: error()
-
   defp error(), do: :erlang.nif_error(:nif_not_loaded)
 end

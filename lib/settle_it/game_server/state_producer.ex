@@ -33,17 +33,25 @@ defmodule SettleIt.GameServer.StateProducer do
 
   @impl true
   def handle_info(:step, state) do
-    timer = Process.send_after(self(), :step, @refresh_interval)
-
     next_game_state = Engine.step(state)
+
+    physics_execution_time = :os.system_time(:millisecond) - next_game_state.last_updated
 
     event =
       case next_game_state.status do
         :playing ->
+          next_physics_step_time =
+            if physics_execution_time > @refresh_interval do
+              0
+            else
+              @refresh_interval - physics_execution_time
+            end
+
+          Process.send_after(self(), :step, next_physics_step_time)
+
           {:bodies_update, next_game_state}
 
         :finished ->
-          Process.cancel_timer(timer)
           {:state_update, next_game_state}
       end
 

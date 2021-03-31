@@ -7,6 +7,7 @@ defmodule SettleIt.GameServer.State.Body do
             rotation: {0.0, 0.0, 0.0},
             linvel: {0.0, 0.0, 0.0},
             angvel: {0.0, 0.0, 0.0},
+            dimensions: {0.0, 0.0, 0.0},
             mass: 0.0,
             hp: 0
 end
