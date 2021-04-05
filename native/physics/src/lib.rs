@@ -387,7 +387,7 @@ fn is_falling(body: &rapier3d::dynamics::RigidBody) -> bool {
 fn get_collider_for_body(body: &Body) -> Collider {
     let height = body.dimensions.2;
     match body.class {
-        BodyClass::Player => ColliderBuilder::new(SharedShape::cylinder(height, 0.50))
+        BodyClass::Player => ColliderBuilder::new(SharedShape::cylinder(height, 0.525))
             .density(0.0)
             .build(),
         BodyClass::Bullet => ColliderBuilder::new(SharedShape::ball(height / 2.0))

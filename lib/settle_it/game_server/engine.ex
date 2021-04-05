@@ -241,7 +241,7 @@ defmodule SettleIt.GameServer.Engine do
          team_id: player.team_id,
          translation: {x, y, z},
          rotation: {0.0, 0.0, rotation},
-         dimensions: {0.0, 0.50, 2.0},
+         dimensions: {0.0, 0.525, 2.0},
          mass: @player_mass,
          class: :player,
          hp: 10
