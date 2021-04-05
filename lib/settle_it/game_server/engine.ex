@@ -253,17 +253,8 @@ defmodule SettleIt.GameServer.Engine do
   defp get_unused_team_color(%State.Game{teams: teams}) do
     used_colors = Enum.map(teams, fn {_team_id, team} -> team.color end)
 
-    team_colors =
-      if teams |> Map.values() |> length() |> odd? do
-        Enum.reverse(@team_colors)
-      else
-        @team_colors
-      end
-
-    Enum.find(team_colors, "red", fn color -> not Enum.member?(used_colors, color) end)
+    Enum.find(@team_colors, "red", fn color -> not Enum.member?(used_colors, color) end)
   end
-
-  defp odd?(n), do: rem(n, 2) == 1
 
   defp apply_jump(%State.Body{} = player_body) do
     if can_jump?(player_body) do
