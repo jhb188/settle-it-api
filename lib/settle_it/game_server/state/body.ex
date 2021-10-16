@@ -1,4 +1,5 @@
 defmodule SettleIt.GameServer.State.Body do
+  @derive Jason.Encoder
   defstruct id: nil,
             team_id: nil,
             owner_id: nil,

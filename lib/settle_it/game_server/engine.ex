@@ -1,6 +1,5 @@
 defmodule SettleIt.GameServer.Engine do
   alias SettleIt.GameServer.State
-  alias SettleIt.GameServer.Physics
 
   @type player_id :: String.t()
   @type coordinate :: non_neg_integer()
@@ -33,14 +32,6 @@ defmodule SettleIt.GameServer.Engine do
     "dark-purple",
     "dark-brown"
   ]
-  @body_classes [
-    :player,
-    :bullet,
-    :test,
-    :obstacle
-  ]
-
-  def body_classes, do: @body_classes
 
   @doc """
   Initializes a State.Game
@@ -55,12 +46,19 @@ defmodule SettleIt.GameServer.Engine do
   @doc """
   Starts the game
   """
-  def start(%State.Game{} = state) do
+  def start(%State.Game{} = state, physics_port) do
     players = Map.values(state.players)
-    player_bodies = get_spaced_player_bodies(players)
-    world_bodies = Physics.init_world()
 
-    %State.Game{state | status: :playing, bodies: Map.merge(world_bodies, player_bodies)}
+    player_bodies = get_spaced_player_bodies(players)
+
+    state = %State.Game{
+      state
+      | physics_port: physics_port
+    }
+
+    update_bodies(state, player_bodies)
+
+    state
   end
 
   @doc """
@@ -147,72 +145,56 @@ defmodule SettleIt.GameServer.Engine do
         x: x,
         y: y
       }) do
-    next_bodies =
-      Map.update!(bodies, player_id, fn body ->
-        # do not allow move requests to reposition player_height
-        {_current_x, _current_y, current_z} = body.translation
-        %State.Body{body | translation: {x / 1, y / 1, current_z}}
-      end)
+    body = Map.get(bodies, player_id)
 
-    %State.Game{state | bodies: next_bodies}
+    # do not allow move requests to reposition player_height
+    {_current_x, _current_y, current_z} = body.translation
+    update_body(state, %{body | translation: {x / 1, y / 1, current_z}})
+
+    state
   end
 
   def rotate_player(%State.Game{bodies: bodies} = state, player_id, angle) do
-    next_bodies =
-      Map.update!(bodies, player_id, fn body ->
-        %State.Body{body | rotation: {0.0, 0.0, angle / 1}}
-      end)
+    body = Map.get(bodies, player_id)
 
-    %State.Game{state | bodies: next_bodies}
+    update_body(state, %{body | rotation: {0.0, 0.0, angle / 1}})
+
+    state
   end
 
   def jump_player(%State.Game{bodies: bodies} = state, player_id) do
-    next_bodies = Map.update!(bodies, player_id, &apply_jump/1)
+    body = Map.get(bodies, player_id)
 
-    %State.Game{state | bodies: next_bodies}
+    update_body(state, apply_jump(body))
+
+    state
   end
 
   def add_bullet(
-        %State.Game{bodies: bodies, players: players} = state,
+        %State.Game{players: players} = state,
         player_id,
         position,
         linvel
       ) do
     bullet_id = UUID.uuid4()
 
-    bullet = %State.Body{
+    bullet = %{
       id: bullet_id,
       owner_id: player_id,
       team_id: players[player_id].team_id,
       translation: {position.x, position.y, position.z},
       linvel: {linvel.x / 1, linvel.y / 1, linvel.z / 1},
+      angvel: {0.0, 0.0, 0.0},
       dimensions: {@bullet_size, @bullet_size, @bullet_size},
       rotation: {0.0, 0.0, 0.0},
       mass: @bullet_mass,
-      class: :bullet
+      class: "bullet",
+      hp: 0
     }
 
-    %State.Game{state | bodies: Map.put(bodies, bullet_id, bullet)}
-  end
+    update_body(state, bullet)
 
-  def step(%State.Game{last_updated: last_updated, bodies: bodies} = state) do
-    target_time = :os.system_time(:millisecond)
-    dt = target_time - last_updated
-    dt_seconds = dt / 1000
-
-    {updated_bodies, won?} = Physics.step(bodies, dt_seconds)
-
-    next_state = %State.Game{
-      state
-      | bodies: updated_bodies,
-        last_updated: target_time
-    }
-
-    if won? do
-      %State.Game{next_state | status: :finished}
-    else
-      next_state
-    end
+    state
   end
 
   defp get_spaced_player_bodies([]), do: %{}
@@ -236,14 +218,16 @@ defmodule SettleIt.GameServer.Engine do
       rotation = Math.rad2deg(current_angle + circumference / 4)
 
       {player.id,
-       %State.Body{
+       %{
          id: player.id,
          team_id: player.team_id,
          translation: {x, y, z},
+         linvel: {0.0, 0.0, 0.0},
+         angvel: {0.0, 0.0, 0.0},
          rotation: {0.0, 0.0, rotation},
          dimensions: {0.0, 0.525, 2.0},
          mass: @player_mass,
-         class: :player,
+         class: "player",
          hp: 10
        }}
     end)
@@ -256,16 +240,24 @@ defmodule SettleIt.GameServer.Engine do
     Enum.find(@team_colors, "red", fn color -> not Enum.member?(used_colors, color) end)
   end
 
-  defp apply_jump(%State.Body{} = player_body) do
+  defp update_body(state, body), do: update_bodies(state, %{body.id => body})
+
+  defp update_bodies(%State.Game{physics_port: port}, bodies) do
+    Port.command(port, Jason.encode!(bodies) <> "\n")
+  end
+
+  defp apply_jump(player_body) do
     if can_jump?(player_body) do
       {linvelx, linvely, _linvelz} = player_body.linvel
 
-      %State.Body{player_body | linvel: {linvelx, linvely, 10.0}}
+      %{player_body | linvel: {linvelx, linvely, 10.0}}
     else
       player_body
     end
   end
 
-  defp can_jump?(%State.Body{linvel: {_x, _y, 0.0}}), do: true
+  defp can_jump?(%{linvel: {_x, _y, linvelz}}) when linvelz < 0.0001 and linvelz > -0.0001,
+    do: true
+
   defp can_jump?(_body), do: false
 end
