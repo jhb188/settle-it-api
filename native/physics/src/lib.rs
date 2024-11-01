@@ -107,19 +107,6 @@ fn handle_contact(
     };
 }
 
-fn get_body_metadata(
-    handle: &RigidBodyHandle,
-    metadata_by_handle: &mut HashMap<RigidBodyHandle, BodyMetadata>,
-) -> BodyMetadata {
-    let value = metadata_by_handle
-        .remove(handle)
-        .expect("no metadata for body handle");
-
-    metadata_by_handle.insert(*handle, value.clone());
-
-    value
-}
-
 fn upsert_body(
     world: &mut physics_world::PhysicsWorld,
     metadata_by_handle: &mut HashMap<RigidBodyHandle, BodyMetadata>,
@@ -319,25 +306,29 @@ pub fn main() {
 
         let next_bodies: HashMap<String, body::Body> = updated_handles
             .iter()
-            .filter_map(|handle| match physics_world::get_body(&world, handle) {
-                Some(rigid_body) => {
-                    let metadata = get_body_metadata(handle, &mut metadata_by_handle);
-                    let body_id = metadata.id.clone();
-                    let body = rigid_body_to_body(rigid_body, &metadata);
+            .filter_map(|handle| {
+                match (
+                    physics_world::get_body(&world, handle),
+                    metadata_by_handle.get(handle),
+                ) {
+                    (Some(rigid_body), Some(metadata)) => {
+                        let body_id = metadata.id.clone();
+                        let body = rigid_body_to_body(rigid_body, &metadata);
 
-                    if is_stale(rigid_body, &metadata) {
-                        delete_body(
-                            body,
-                            &mut world,
-                            &mut metadata_by_handle,
-                            &mut handle_by_body_id,
-                        );
-                        None
-                    } else {
-                        Some((body_id, body))
+                        if is_stale(rigid_body, &metadata) {
+                            delete_body(
+                                body,
+                                &mut world,
+                                &mut metadata_by_handle,
+                                &mut handle_by_body_id,
+                            );
+                            None
+                        } else {
+                            Some((body_id, body))
+                        }
                     }
+                    _ => None,
                 }
-                None => None,
             })
             .collect();
 
