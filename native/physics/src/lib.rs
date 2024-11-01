@@ -283,11 +283,11 @@ pub fn main() {
         updated_handles.extend(user_updated_handles);
 
         let physics_step_start = Instant::now();
-        physics_world::step(&mut world);
-        while let Ok(contact_event) = physics_world::get_contact_receiver(&world).try_recv() {
-            handle_contact(contact_event, &mut world, &mut metadata_by_handle);
-        }
-        let physics_updated_handles = physics_world::get_active_handles(&world);
+        let f_handle_contact =
+            |contact_event: ContactEvent, phys_world: &mut physics_world::PhysicsWorld| {
+                handle_contact(contact_event, phys_world, &mut metadata_by_handle);
+            };
+        let physics_updated_handles = physics_world::step(&mut world, f_handle_contact);
 
         updated_handles.extend(physics_updated_handles);
 

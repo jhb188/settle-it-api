@@ -60,7 +60,10 @@ pub fn init() -> PhysicsWorld {
     }
 }
 
-pub fn step(physics_world: &mut PhysicsWorld) {
+pub fn step<F: FnMut(ContactEvent, &mut PhysicsWorld)>(
+    physics_world: &mut PhysicsWorld,
+    mut f_handle_contact: F,
+) -> HashSet<RigidBodyHandle> {
     physics_world.pipeline.step(
         &physics_world.gravity,
         &physics_world.integration_parameters,
@@ -74,6 +77,12 @@ pub fn step(physics_world: &mut PhysicsWorld) {
         &physics_world.physics_hooks,
         &physics_world.event_handler,
     );
+
+    while let Ok(contact_event) = physics_world.contact_receiver.try_recv() {
+        f_handle_contact(contact_event, physics_world);
+    }
+
+    get_active_handles(physics_world)
 }
 
 pub fn get_tick_ms(physics_world: &PhysicsWorld) -> f32 {
@@ -97,11 +106,7 @@ pub fn get_bodies(physics_world: &PhysicsWorld) -> &RigidBodySet {
     &physics_world.bodies
 }
 
-pub fn get_contact_receiver(physics_world: &PhysicsWorld) -> &Receiver<ContactEvent> {
-    &physics_world.contact_receiver
-}
-
-pub fn get_active_handles(physics_world: &PhysicsWorld) -> HashSet<RigidBodyHandle> {
+fn get_active_handles(physics_world: &PhysicsWorld) -> HashSet<RigidBodyHandle> {
     physics_world
         .island_manager
         .active_dynamic_bodies()
