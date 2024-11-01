@@ -236,6 +236,26 @@ fn spawn_stdin_channel() -> Receiver<HashMap<String, body::Body>> {
     rx
 }
 
+fn get_num_teams_alive(metadata_by_handle: &HashMap<RigidBodyHandle, BodyMetadata>) -> usize {
+    let mut teams_alive = HashSet::new();
+
+    for (_id, body) in metadata_by_handle {
+        match (body.hp, &body.team_id) {
+            (_, None) => {}
+            (0, _) => {}
+            (_nonzero_hp, Some(team_id)) => {
+                teams_alive.insert(team_id);
+            }
+        };
+    }
+
+    teams_alive.len()
+}
+
+fn check_is_game_won(metadata_by_handle: &HashMap<RigidBodyHandle, BodyMetadata>) -> bool {
+    get_num_teams_alive(metadata_by_handle) == 1
+}
+
 pub fn main() {
     let mut writer = std::io::stdout();
     let initial_bodies: HashMap<String, body::Body> = init::get_initial_world();
@@ -251,12 +271,12 @@ pub fn main() {
     );
 
     let mut updated_handles: HashSet<RigidBodyHandle> = HashSet::new();
-    let initial_world_handles: HashSet<RigidBodyHandle> = physics_world::get_bodies(&world)
+    let initial_bodies_handles: HashSet<RigidBodyHandle> = physics_world::get_bodies(&world)
         .iter()
         .map(|(handle, _body)| handle)
         .collect();
 
-    updated_handles.extend(initial_world_handles);
+    updated_handles.extend(initial_bodies_handles);
 
     let stdin_channel = spawn_stdin_channel();
     let mut is_won: bool = false;
@@ -319,13 +339,6 @@ pub fn main() {
             })
             .collect();
 
-        let remaining_ms =
-            (integration_dt_ms - (physics_step_start.elapsed().as_millis() as f32)) as u64;
-
-        if remaining_ms > 0 {
-            thread::sleep(Duration::from_millis(remaining_ms));
-        }
-
         match serde_json::to_writer(&mut writer, &next_bodies) {
             Ok(_) => {}
             Err(write_err) => {
@@ -334,25 +347,17 @@ pub fn main() {
         };
         println!("");
 
-        let mut teams_alive = HashSet::new();
-
-        for (_id, body) in &metadata_by_handle {
-            match (body.hp, &body.team_id) {
-                (_, None) => {}
-                (0, _) => {}
-                (_nonzero_hp, Some(team_id)) => {
-                    teams_alive.insert(team_id);
-                }
-            };
-        }
-
-        is_won = teams_alive.len() == 1;
-
+        is_won = check_is_game_won(&metadata_by_handle);
         if is_won {
             serde_json::to_writer(&mut writer, "game_won");
             println!("");
         }
-
         updated_handles.clear();
+
+        let remaining_ms =
+            (integration_dt_ms - (physics_step_start.elapsed().as_millis() as f32)) as u64;
+        if remaining_ms > 0 {
+            thread::sleep(Duration::from_millis(remaining_ms));
+        }
     }
 }
