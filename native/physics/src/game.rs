@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::body;
+use crate::init;
 use crate::physics_world;
 use crate::util::to_vec3;
 
@@ -27,11 +28,19 @@ struct BodyMetadata {
 }
 
 pub fn init() -> Game {
-    Game {
+    let mut game_state = Game {
         world: physics_world::init(),
         metadata_by_handle: HashMap::new(),
         handle_by_body_id: HashMap::new(),
+    };
+
+    let initial_bodies: Vec<body::Body> = init::get_initial_bodies();
+    // add initial bodies to world and metadata store
+    for body in &initial_bodies {
+        upsert_body(&mut game_state, body);
     }
+
+    game_state
 }
 
 pub fn step(game_state: &mut Game) -> HashSet<RigidBodyHandle> {

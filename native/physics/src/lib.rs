@@ -25,23 +25,25 @@ mod atoms {
 type UserInput = HashMap<String, body::Body>;
 type UserInputChannel = Receiver<UserInput>;
 
-fn spawn_stdin_channel() -> UserInputChannel {
-    let (tx, rx) = mpsc::channel::<HashMap<String, body::Body>>();
+fn spawn_stdin_channel() -> Result<UserInputChannel, std::io::Error> {
+    let (tx, rx) = mpsc::channel::<UserInput>();
     let reader = std::io::stdin();
-    thread::spawn(move || loop {
+    thread::spawn(move || {
         let mut buf = String::new();
-        reader.read_line(&mut buf);
-        let result: serde_json::Result<HashMap<String, body::Body>> = serde_json::from_str(&buf);
-        match result {
-            Ok(new_bodies) => {
-                tx.send(new_bodies);
+        while reader.read_line(&mut buf).is_ok() {
+            match serde_json::from_str::<UserInput>(&buf) {
+                Ok(new_bodies) => {
+                    if tx.send(new_bodies).is_err() {
+                        eprintln!("Failed to send user input to channel.");
+                        break;
+                    }
+                }
+                Err(decode_err) => eprintln!("Failed to decode user input: {}", decode_err),
             }
-            Err(decode_err) => {
-                eprintln!("{}", decode_err);
-            }
-        };
+            buf.clear();
+        }
     });
-    rx
+    Ok(rx)
 }
 
 fn handle_user_input(
@@ -87,16 +89,18 @@ fn write_body_updates(
     println!("");
 }
 
+fn sleep_for_remaining_time(loop_start: Instant, integration_dt_ms: f32) {
+    let elapsed_ms = loop_start.elapsed().as_millis() as f32;
+    if elapsed_ms < integration_dt_ms {
+        let sleep_duration = Duration::from_millis((integration_dt_ms - elapsed_ms) as u64);
+        thread::sleep(sleep_duration);
+    }
+}
+
 pub fn main() {
     let mut writer = std::io::stdout();
-    let stdin_channel = spawn_stdin_channel();
-    let initial_bodies: Vec<body::Body> = init::get_initial_bodies();
+    let stdin_channel = spawn_stdin_channel().expect("Failed to spawn stdin channel");
     let mut game_state = game::init();
-
-    // add initial bodies to world and metadata store
-    for body in &initial_bodies {
-        game::upsert_body(&mut game_state, body);
-    }
 
     let mut updated_handles: HashSet<RigidBodyHandle> = HashSet::new();
     let initial_world_handles = game::get_handles(&game_state);
@@ -128,9 +132,6 @@ pub fn main() {
         updated_handles.clear();
 
         // 5. handle leftover time
-        let remaining_ms = (integration_dt_ms - (loop_start.elapsed().as_millis() as f32)) as u64;
-        if remaining_ms > 0 {
-            thread::sleep(Duration::from_millis(remaining_ms));
-        }
+        sleep_for_remaining_time(loop_start, integration_dt_ms);
     }
 }
