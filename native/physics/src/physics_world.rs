@@ -1,11 +1,13 @@
 use crate::body;
 use crossbeam::channel::Receiver;
-use rapier3d::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
-use rapier3d::prelude::{RigidBody, RigidBodyHandle};
+use rapier3d::dynamics::{ImpulseJointSet, IntegrationParameters, RigidBodySet};
+use rapier3d::prelude::{
+    CollisionEvent, MultibodyJointSet, QueryPipeline, RigidBody, RigidBodyHandle,
+};
 use rapier3d::{
     na::Vector3,
     prelude::{
-        BroadPhase, CCDSolver, ChannelEventCollector, ColliderSet, ContactEvent, IslandManager,
+        CCDSolver, ChannelEventCollector, ColliderSet, DefaultBroadPhase, IslandManager,
         NarrowPhase, PhysicsPipeline,
     },
 };
@@ -16,15 +18,17 @@ pub struct PhysicsWorld {
     island_manager: IslandManager,
     gravity: Vector3<f32>,
     integration_parameters: IntegrationParameters,
-    broad_phase: BroadPhase,
+    broad_phase: DefaultBroadPhase,
     narrow_phase: NarrowPhase,
     bodies: RigidBodySet,
     colliders: ColliderSet,
-    joints: JointSet,
+    impulse_joint_set: ImpulseJointSet,
+    multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
+    query_pipeline: QueryPipeline,
     physics_hooks: (),
     event_handler: ChannelEventCollector,
-    contact_receiver: Receiver<ContactEvent>,
+    collision_receiver: Receiver<CollisionEvent>,
 }
 
 const GRAVITY: f32 = -9.80665;
@@ -34,14 +38,16 @@ pub fn init() -> PhysicsWorld {
     let island_manager = IslandManager::new();
     let gravity = Vector3::new(0.0, 0.0, GRAVITY);
     let integration_parameters = IntegrationParameters::default();
-    let broad_phase = BroadPhase::new();
+    let broad_phase = DefaultBroadPhase::new();
     let narrow_phase = NarrowPhase::new();
-    let joints = JointSet::new();
+    let impulse_joint_set = ImpulseJointSet::new();
+    let multibody_joint_set = MultibodyJointSet::new();
     let ccd_solver = CCDSolver::new();
+    let query_pipeline = QueryPipeline::new();
     let physics_hooks = ();
-    let (contact_send, contact_receiver) = crossbeam::channel::unbounded();
-    let (intersection_send, _intersection_receiver) = crossbeam::channel::unbounded();
-    let event_handler = ChannelEventCollector::new(intersection_send, contact_send);
+    let (contact_send, _contact_receiver) = crossbeam::channel::unbounded();
+    let (collision_send, collision_receiver) = crossbeam::channel::unbounded();
+    let event_handler = ChannelEventCollector::new(collision_send, contact_send);
 
     PhysicsWorld {
         pipeline,
@@ -52,15 +58,17 @@ pub fn init() -> PhysicsWorld {
         narrow_phase,
         bodies: RigidBodySet::new(),
         colliders: ColliderSet::new(),
-        joints,
+        impulse_joint_set,
+        multibody_joint_set,
         ccd_solver,
+        query_pipeline,
         physics_hooks,
         event_handler,
-        contact_receiver,
+        collision_receiver,
     }
 }
 
-pub fn step<F: FnMut(ContactEvent, &mut PhysicsWorld)>(
+pub fn step<F: FnMut(CollisionEvent, &mut PhysicsWorld)>(
     physics_world: &mut PhysicsWorld,
     mut f_handle_contact: F,
 ) -> HashSet<RigidBodyHandle> {
@@ -72,14 +80,16 @@ pub fn step<F: FnMut(ContactEvent, &mut PhysicsWorld)>(
         &mut physics_world.narrow_phase,
         &mut physics_world.bodies,
         &mut physics_world.colliders,
-        &mut physics_world.joints,
+        &mut physics_world.impulse_joint_set,
+        &mut physics_world.multibody_joint_set,
         &mut physics_world.ccd_solver,
+        Some(&mut physics_world.query_pipeline),
         &physics_world.physics_hooks,
         &physics_world.event_handler,
     );
 
-    while let Ok(contact_event) = physics_world.contact_receiver.try_recv() {
-        f_handle_contact(contact_event, physics_world);
+    while let Ok(collision_event) = physics_world.collision_receiver.try_recv() {
+        f_handle_contact(collision_event, physics_world);
     }
 
     get_active_handles(physics_world)
@@ -94,7 +104,9 @@ pub fn remove_body(physics_world: &mut PhysicsWorld, rigid_body_handle: RigidBod
         rigid_body_handle,
         &mut physics_world.island_manager,
         &mut physics_world.colliders,
-        &mut physics_world.joints,
+        &mut physics_world.impulse_joint_set,
+        &mut physics_world.multibody_joint_set,
+        true,
     );
 }
 

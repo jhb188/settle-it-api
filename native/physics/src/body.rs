@@ -68,11 +68,11 @@ pub fn get_collider(body: &Body) -> Collider {
     match body.class {
         BodyClass::Player => {
             ColliderBuilder::capsule_z(half_height - PLAYER_COLLIDER_RADIUS, PLAYER_COLLIDER_RADIUS)
-                .active_events(ActiveEvents::CONTACT_EVENTS)
+                .active_events(ActiveEvents::COLLISION_EVENTS)
                 .build()
         }
         BodyClass::Bullet => ColliderBuilder::new(SharedShape::ball(half_height))
-            .active_events(ActiveEvents::CONTACT_EVENTS)
+            .active_events(ActiveEvents::COLLISION_EVENTS)
             .build(),
         BodyClass::Test => ColliderBuilder::new(SharedShape::ball(half_height)).build(),
         BodyClass::Obstacle => ColliderBuilder::new(SharedShape::cuboid(
@@ -105,11 +105,12 @@ fn to_dynamic_rigid_body(body: &Body) -> RigidBody {
             (BodyClass::Player, 0) => true,
             _ => false,
         })
+        .ccd_enabled(true)
         .build()
 }
 
 fn to_static_rigid_body(body: &Body) -> RigidBody {
-    RigidBodyBuilder::new(RigidBodyType::Static)
+    RigidBodyBuilder::new(RigidBodyType::Fixed)
         .translation(to_vec3(body.translation))
         .rotation(Vector3::z() * body.rotation.2)
         .lock_rotations()

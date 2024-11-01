@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate rustler;
 
-use rapier3d::na::Vector3;
 use rapier3d::prelude::*;
 use serde_json;
 use std::collections::{HashMap, HashSet};
@@ -64,13 +63,13 @@ fn handle_player_bullet_collision(
 }
 
 fn handle_contact(
-    contact_event: ContactEvent,
+    collision_event: CollisionEvent,
     world: &mut physics_world::PhysicsWorld,
     metadata_by_handle: &mut HashMap<RigidBodyHandle, BodyMetadata>,
 ) {
     let collider_set = physics_world::get_colliders(world);
-    match contact_event {
-        ContactEvent::Started(collider_handle_a, collider_handle_b) => {
+    match collision_event {
+        CollisionEvent::Started(collider_handle_a, collider_handle_b, _flags) => {
             let ((body_handle_a, metadata_a), (body_handle_b, metadata_b)) = match (
                 get_metadata_from_collider_set(collider_handle_a, collider_set, metadata_by_handle),
                 get_metadata_from_collider_set(collider_handle_b, collider_set, metadata_by_handle),
@@ -133,7 +132,8 @@ fn upsert_body(
                 existing_body.set_translation(to_vec3(body.translation), true);
                 existing_body.set_linvel(to_vec3(body.linvel), true);
                 existing_body.set_angvel(to_vec3(body.angvel), true);
-                existing_body.set_rotation(Vector3::z() * body.rotation.2, true);
+                existing_body
+                    .set_rotation(Rotation::from_euler_angles(0.0, 0.0, body.rotation.2), true);
             }
             metadata_by_handle.insert(*existing_body_handle, metadata);
             false
@@ -271,12 +271,12 @@ pub fn main() {
     );
 
     let mut updated_handles: HashSet<RigidBodyHandle> = HashSet::new();
-    let initial_bodies_handles: HashSet<RigidBodyHandle> = physics_world::get_bodies(&world)
+    let initial_world_handles: HashSet<RigidBodyHandle> = physics_world::get_bodies(&world)
         .iter()
         .map(|(handle, _body)| handle)
         .collect();
 
-    updated_handles.extend(initial_bodies_handles);
+    updated_handles.extend(initial_world_handles);
 
     let stdin_channel = spawn_stdin_channel();
     let mut is_won: bool = false;
@@ -304,8 +304,8 @@ pub fn main() {
 
         let physics_step_start = Instant::now();
         let f_handle_contact =
-            |contact_event: ContactEvent, phys_world: &mut physics_world::PhysicsWorld| {
-                handle_contact(contact_event, phys_world, &mut metadata_by_handle);
+            |collision_event: CollisionEvent, phys_world: &mut physics_world::PhysicsWorld| {
+                handle_contact(collision_event, phys_world, &mut metadata_by_handle);
             };
         let physics_updated_handles = physics_world::step(&mut world, f_handle_contact);
 
