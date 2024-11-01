@@ -68,10 +68,7 @@ pub fn init() -> PhysicsWorld {
     }
 }
 
-pub fn step<F: FnMut(CollisionEvent, &mut PhysicsWorld)>(
-    physics_world: &mut PhysicsWorld,
-    mut f_handle_contact: F,
-) -> HashSet<RigidBodyHandle> {
+pub fn step(physics_world: &mut PhysicsWorld) -> Vec<CollisionEvent> {
     physics_world.pipeline.step(
         &physics_world.gravity,
         &physics_world.integration_parameters,
@@ -88,15 +85,15 @@ pub fn step<F: FnMut(CollisionEvent, &mut PhysicsWorld)>(
         &physics_world.event_handler,
     );
 
+    let mut collisions = Vec::new();
     while let Ok(collision_event) = physics_world.collision_receiver.try_recv() {
-        f_handle_contact(collision_event, physics_world);
+        collisions.push(collision_event);
     }
-
-    get_active_handles(physics_world)
+    collisions
 }
 
-pub fn get_tick_ms(physics_world: &PhysicsWorld) -> f32 {
-    physics_world.integration_parameters.dt * 1000.0
+pub fn get_dt(physics_world: &PhysicsWorld) -> f32 {
+    physics_world.integration_parameters.dt
 }
 
 pub fn remove_body(physics_world: &mut PhysicsWorld, rigid_body_handle: RigidBodyHandle) {
@@ -118,12 +115,12 @@ pub fn get_bodies(physics_world: &PhysicsWorld) -> &RigidBodySet {
     &physics_world.bodies
 }
 
-fn get_active_handles(physics_world: &PhysicsWorld) -> HashSet<RigidBodyHandle> {
+pub fn get_active_handles(physics_world: &PhysicsWorld) -> HashSet<RigidBodyHandle> {
     physics_world
         .island_manager
         .active_dynamic_bodies()
         .into_iter()
-        .map(|handle_ref| handle_ref.clone())
+        .map(|handle| handle.clone())
         .collect()
 }
 

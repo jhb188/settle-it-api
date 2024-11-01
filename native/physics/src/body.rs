@@ -3,7 +3,6 @@ use rapier3d::na::Vector3;
 use rapier3d::prelude::*;
 use serde;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename = "Elixir.SettleIt.GameServer.State.Body")]
@@ -34,10 +33,10 @@ pub enum BodyClass {
     Test,
 }
 
-pub fn overlaps_existing_bodies(body: &Body, bodies: &HashMap<String, Body>) -> bool {
+pub fn overlaps_existing_bodies(body: &Body, bodies: &Vec<Body>) -> bool {
     let mut overlaps = false;
-    for (_k, current_body) in bodies {
-        if bounding_boxes_overlap(body, current_body) {
+    for current_body in bodies {
+        if bounding_boxes_overlap(body, &current_body) {
             overlaps = true;
             break;
         }

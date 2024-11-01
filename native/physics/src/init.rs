@@ -1,6 +1,5 @@
 use crate::body;
 use rand::Rng;
-use std::collections::HashMap;
 use uuid::Uuid;
 
 const ARENA_WIDTH: f32 = 200.0;
@@ -22,17 +21,17 @@ fn create_floor() -> body::Body {
     }
 }
 
-fn seed_obstacle_in_open_space(bodies: &mut HashMap<String, body::Body>) {
+fn seed_obstacle_in_open_space(bodies: &mut Vec<body::Body>) {
     let obstacle = create_random_obstacle();
 
     if !body::overlaps_existing_bodies(&obstacle, bodies) {
-        bodies.insert(obstacle.id.clone(), obstacle);
+        bodies.push(obstacle);
     } else {
         seed_obstacle_in_open_space(bodies);
     }
 }
 
-fn seed_obstacles(bodies: &mut HashMap<String, body::Body>) {
+fn seed_obstacles(bodies: &mut Vec<body::Body>) {
     for _ in 0..MAX_OBSTACLES {
         seed_obstacle_in_open_space(bodies);
     }
@@ -63,10 +62,10 @@ fn create_random_obstacle() -> body::Body {
     }
 }
 
-pub fn get_initial_world() -> HashMap<String, body::Body> {
-    let mut initial_bodies: HashMap<String, body::Body> = HashMap::new();
+pub fn get_initial_bodies() -> Vec<body::Body> {
+    let mut initial_bodies: Vec<body::Body> = Vec::new();
     let floor = create_floor();
-    initial_bodies.insert(String::from("floor"), floor);
+    initial_bodies.push(floor);
     seed_obstacles(&mut initial_bodies);
     initial_bodies
 }
