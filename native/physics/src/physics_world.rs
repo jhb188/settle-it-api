@@ -130,6 +130,6 @@ pub fn add_body(physics_world: &mut PhysicsWorld, body: &body::Body) -> RigidBod
 pub fn get_body_mut<'a>(
     physics_world: &'a mut PhysicsWorld,
     handle: &RigidBodyHandle,
-) -> &'a mut RigidBody {
-    physics_world.bodies.get_mut(*handle).unwrap()
+) -> Option<&'a mut RigidBody> {
+    physics_world.bodies.get_mut(*handle)
 }

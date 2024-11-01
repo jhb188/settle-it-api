@@ -12,6 +12,8 @@ use std::time::{Duration, Instant};
 mod body;
 mod init;
 mod physics_world;
+mod util;
+use util::to_vec3;
 
 mod atoms {
     rustler_atoms! {
@@ -113,47 +115,32 @@ fn upsert_body(
     handle_by_body_id: &mut HashMap<String, RigidBodyHandle>,
     body: &body::Body,
 ) -> bool {
+    // TODO: get rotations working natively so that we don't have to keep them
+    // in metadata
+    let metadata = BodyMetadata {
+        id: body.id.clone(),
+        team_id: body.team_id.clone(),
+        owner_id: body.owner_id.clone(),
+        class: body.class,
+        rotation: body.rotation,
+        dimensions: body.dimensions,
+        hp: body.hp,
+    };
+
     match handle_by_body_id.get_mut(&body.id) {
         Some(existing_body_handle) => {
-            let (transx, transy, transz) = body.translation;
-            let (linvelx, linvely, linvelz) = body.linvel;
-            let (angvelx, angvely, angvelz) = body.angvel;
-            let (_rotx, _roty, rotz) = body.rotation;
-            let existing_body = physics_world::get_body_mut(world, existing_body_handle);
-            existing_body.set_translation(Vector3::new(transx, transy, transz), true);
-            existing_body.set_linvel(Vector3::new(linvelx, linvely, linvelz), true);
-            existing_body.set_angvel(Vector3::new(angvelx, angvely, angvelz), true);
-            existing_body.set_rotation(Vector3::z() * rotz, true);
-            // TODO: get rotations working natively so that we don't have to keep them
-            // in metadata
-            metadata_by_handle.insert(
-                *existing_body_handle,
-                BodyMetadata {
-                    id: body.id.clone(),
-                    team_id: body.team_id.clone(),
-                    owner_id: body.owner_id.clone(),
-                    class: body.class,
-                    rotation: body.rotation,
-                    dimensions: body.dimensions,
-                    hp: body.hp,
-                },
-            );
+            if let Some(existing_body) = physics_world::get_body_mut(world, existing_body_handle) {
+                existing_body.set_translation(to_vec3(body.translation), true);
+                existing_body.set_linvel(to_vec3(body.linvel), true);
+                existing_body.set_angvel(to_vec3(body.angvel), true);
+                existing_body.set_rotation(Vector3::z() * body.rotation.2, true);
+            }
+            metadata_by_handle.insert(*existing_body_handle, metadata);
             false
         }
         None => {
             let body_handle = physics_world::add_body(world, body);
-            metadata_by_handle.insert(
-                body_handle,
-                BodyMetadata {
-                    id: body.id.clone(),
-                    team_id: body.team_id.clone(),
-                    owner_id: body.owner_id.clone(),
-                    class: body.class,
-                    rotation: body.rotation,
-                    dimensions: body.dimensions,
-                    hp: body.hp,
-                },
-            );
+            metadata_by_handle.insert(body_handle, metadata);
             handle_by_body_id.insert(body.id.clone(), body_handle);
             true
         }

@@ -1,3 +1,4 @@
+use crate::util::to_vec3;
 use rapier3d::na::Vector3;
 use rapier3d::prelude::*;
 use serde;
@@ -94,19 +95,11 @@ pub fn to_rigid_body(body: &Body) -> RigidBody {
 
 fn to_dynamic_rigid_body(body: &Body) -> RigidBody {
     RigidBodyBuilder::new(RigidBodyType::Dynamic)
-        .translation(Vector3::new(
-            body.translation.0,
-            body.translation.1,
-            body.translation.2,
-        ))
-        .rotation(Vector3::new(
-            body.rotation.0,
-            body.rotation.1,
-            body.rotation.2,
-        ))
+        .translation(to_vec3(body.translation))
+        .rotation(to_vec3(body.rotation))
         .lock_rotations()
-        .linvel(Vector3::new(body.linvel.0, body.linvel.1, body.linvel.2))
-        .angvel(Vector3::new(body.angvel.0, body.angvel.1, body.angvel.2))
+        .linvel(to_vec3(body.linvel))
+        .angvel(to_vec3(body.angvel))
         .additional_mass(body.mass)
         .sleeping(match (body.class, body.hp) {
             (BodyClass::Player, 0) => true,
@@ -117,11 +110,7 @@ fn to_dynamic_rigid_body(body: &Body) -> RigidBody {
 
 fn to_static_rigid_body(body: &Body) -> RigidBody {
     RigidBodyBuilder::new(RigidBodyType::Static)
-        .translation(Vector3::new(
-            body.translation.0,
-            body.translation.1,
-            body.translation.2,
-        ))
+        .translation(to_vec3(body.translation))
         .rotation(Vector3::z() * body.rotation.2)
         .lock_rotations()
         .additional_mass(body.mass)
