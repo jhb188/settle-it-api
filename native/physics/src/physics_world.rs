@@ -2,16 +2,17 @@ use crate::body;
 use crossbeam::channel::Receiver;
 use rapier3d::dynamics::{ImpulseJointSet, IntegrationParameters, RigidBodySet};
 use rapier3d::prelude::{
-    CollisionEvent, MultibodyJointSet, QueryPipeline, RigidBody, RigidBodyHandle, Rotation,
+    CollisionEvent, MultibodyJointSet, QueryPipeline, RigidBody, RigidBodyHandle,
 };
 use rapier3d::{
-    na::Vector3,
+    na::{UnitQuaternion, Vector3},
     prelude::{
         CCDSolver, ChannelEventCollector, ColliderSet, DefaultBroadPhase, IslandManager,
         NarrowPhase, PhysicsPipeline,
     },
 };
 use std::collections::HashSet;
+use std::f32::consts::PI;
 
 pub struct PhysicsWorld {
     pipeline: PhysicsPipeline,
@@ -156,7 +157,10 @@ pub fn move_body(world: &mut PhysicsWorld, handle: &RigidBodyHandle, x: f32, y: 
 
 pub fn rotate_body(world: &mut PhysicsWorld, handle: &RigidBodyHandle, rotation_angle: f32) {
     if let Some(existing_body) = get_body_mut(world, handle) {
-        existing_body.set_rotation(Rotation::from_euler_angles(0.0, 0.0, rotation_angle), true);
+        let angle_radians = rotation_angle * (PI / 180.0);
+        let rotation = UnitQuaternion::from_axis_angle(&Vector3::z_axis(), angle_radians);
+
+        existing_body.set_rotation(rotation, true);
     }
 }
 

@@ -1,9 +1,12 @@
 use rapier3d::math::Rotation;
+use rapier3d::na::UnitQuaternion;
 use rapier3d::prelude::ColliderHandle;
 use rapier3d::prelude::CollisionEvent;
+use rapier3d::prelude::RigidBody;
 use rapier3d::prelude::RigidBodyHandle;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::f32::consts::PI;
 
 use crate::body;
 use crate::init;
@@ -22,7 +25,6 @@ struct BodyMetadata {
     team_id: Option<String>,
     owner_id: Option<String>,
     class: body::BodyClass,
-    rotation: (f32, f32, f32),
     dimensions: (f32, f32, f32),
     hp: i32,
 }
@@ -101,14 +103,11 @@ pub fn get_tick_ms(game_state: &Game) -> f32 {
 }
 
 pub fn upsert_body(game_state: &mut Game, body: &body::Body) -> bool {
-    // TODO: get rotations working natively so that we don't have to keep them
-    // in metadata
     let metadata = BodyMetadata {
         id: body.id.clone(),
         team_id: body.team_id.clone(),
         owner_id: body.owner_id.clone(),
         class: body.class,
-        rotation: body.rotation,
         dimensions: body.dimensions,
         hp: body.hp,
     };
@@ -168,7 +167,7 @@ pub fn get_body_from_handle(game_state: &Game, handle: &RigidBodyHandle) -> Opti
     }
 }
 
-fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, metadata: &BodyMetadata) -> body::Body {
+fn rigid_body_to_body(body: &RigidBody, metadata: &BodyMetadata) -> body::Body {
     let translation = body.translation();
     let linvel = body.linvel();
     let angvel = body.angvel();
@@ -178,9 +177,7 @@ fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, metadata: &BodyMetad
         team_id: metadata.team_id.clone(),
         owner_id: metadata.owner_id.clone(),
         translation: (translation.x, translation.y, translation.z),
-        // TODO: get rotations working natively so that we don't have to keep them
-        // in metadata
-        rotation: metadata.rotation,
+        rotation: (0.0, 0.0, rigid_body_rotation_to_angle_deg(body)),
         linvel: (linvel.x, linvel.y, linvel.z),
         angvel: (angvel.x, angvel.y, angvel.z),
         dimensions: metadata.dimensions,
@@ -188,6 +185,12 @@ fn rigid_body_to_body(body: &rapier3d::dynamics::RigidBody, metadata: &BodyMetad
         class: metadata.class,
         hp: metadata.hp,
     }
+}
+
+fn rigid_body_rotation_to_angle_deg(body: &RigidBody) -> f32 {
+    let rotation: UnitQuaternion<f32> = *body.rotation();
+    let angle_radians = rotation.angle();
+    angle_radians * (180.0 / PI)
 }
 
 fn get_num_teams_alive(metadata_by_handle: &HashMap<RigidBodyHandle, BodyMetadata>) -> usize {
