@@ -28,3 +28,5 @@ settle_it-*.tar
 /priv/native/
 
 /.elixir_ls/
+
+.DS_Store

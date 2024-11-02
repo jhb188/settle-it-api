@@ -4,8 +4,11 @@ defmodule SettleIt.GameServer.State.Game do
             players: %{},
             teams: %{},
             bodies: %{},
+            world_bodies: %{},
             topic: "",
-            last_updated: nil
+            last_updated: nil,
+            physics_port: nil,
+            physics_data: ""
 
   def get_subscribed_processes(%__MODULE__{players: players}) do
     players
