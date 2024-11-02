@@ -56,7 +56,7 @@ defmodule SettleIt.GameServer.Engine do
       | physics_port: physics_port
     }
 
-    update_bodies(state, player_bodies)
+    Enum.each(player_bodies, fn {_body_id, body} -> add_player(state, body) end)
 
     state
   end
@@ -147,9 +147,12 @@ defmodule SettleIt.GameServer.Engine do
       }) do
     body = Map.get(bodies, player_id)
 
-    # do not allow move requests to reposition player_height
-    {_current_x, _current_y, current_z} = body.translation
-    update_body(state, %{body | translation: {x / 1, y / 1, current_z}})
+    msg = %{action: "move", x: x, y: y, id: body.id}
+
+    send_physics_message(
+      state,
+      msg
+    )
 
     state
   end
@@ -157,15 +160,18 @@ defmodule SettleIt.GameServer.Engine do
   def rotate_player(%State.Game{bodies: bodies} = state, player_id, angle) do
     body = Map.get(bodies, player_id)
 
-    update_body(state, %{body | rotation: {0.0, 0.0, angle / 1}})
+    msg = %{action: "rotate", id: body.id, rotation_angle: angle / 1}
+    send_physics_message(state, msg)
 
     state
   end
 
   def jump_player(%State.Game{bodies: bodies} = state, player_id) do
-    body = Map.get(bodies, player_id)
+    body = bodies |> Map.get(player_id) |> apply_jump()
+    {_linvelx, _linvely, linvelz} = body.linvel
 
-    update_body(state, apply_jump(body))
+    msg = %{action: "jump", id: body.id, linvel_z: linvelz}
+    send_physics_message(state, msg)
 
     state
   end
@@ -192,7 +198,8 @@ defmodule SettleIt.GameServer.Engine do
       hp: 0
     }
 
-    update_body(state, bullet)
+    msg = Map.put(bullet, :action, "shoot")
+    send_physics_message(state, msg)
 
     state
   end
@@ -221,6 +228,7 @@ defmodule SettleIt.GameServer.Engine do
        %{
          id: player.id,
          team_id: player.team_id,
+         owner_id: player.id,
          translation: {x, y, z},
          linvel: {0.0, 0.0, 0.0},
          angvel: {0.0, 0.0, 0.0},
@@ -240,10 +248,13 @@ defmodule SettleIt.GameServer.Engine do
     Enum.find(@team_colors, "red", fn color -> not Enum.member?(used_colors, color) end)
   end
 
-  defp update_body(state, body), do: update_bodies(state, %{body.id => body})
+  defp send_physics_message(%State.Game{physics_port: port}, msg) do
+    Port.command(port, Jason.encode!(msg) <> "\n")
+  end
 
-  defp update_bodies(%State.Game{physics_port: port}, bodies) do
-    Port.command(port, Jason.encode!(bodies) <> "\n")
+  defp add_player(state, body) do
+    msg = Map.put(body, :action, "add_player")
+    send_physics_message(state, msg)
   end
 
   defp apply_jump(player_body) do

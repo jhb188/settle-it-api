@@ -5,14 +5,14 @@ use rapier3d::prelude::*;
 use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::io::Stdout;
-use std::sync::mpsc;
-use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::{Duration, Instant};
+
 mod body;
 mod game;
 mod init;
 mod physics_world;
+mod user_input;
 mod util;
 
 mod atoms {
@@ -20,49 +20,6 @@ mod atoms {
         atom ok;
         atom error;
     }
-}
-
-type UserInput = HashMap<String, body::Body>;
-type UserInputChannel = Receiver<UserInput>;
-
-fn spawn_stdin_channel() -> Result<UserInputChannel, std::io::Error> {
-    let (tx, rx) = mpsc::channel::<UserInput>();
-    let reader = std::io::stdin();
-    thread::spawn(move || {
-        let mut buf = String::new();
-        while reader.read_line(&mut buf).is_ok() {
-            match serde_json::from_str::<UserInput>(&buf) {
-                Ok(new_bodies) => {
-                    if tx.send(new_bodies).is_err() {
-                        eprintln!("Failed to send user input to channel.");
-                        break;
-                    }
-                }
-                Err(decode_err) => eprintln!("Failed to decode user input: {}", decode_err),
-            }
-            buf.clear();
-        }
-    });
-    Ok(rx)
-}
-
-fn handle_user_input(
-    channel: &UserInputChannel,
-    game_state: &mut game::Game,
-) -> HashSet<RigidBodyHandle> {
-    let mut user_updated_handles = HashSet::new();
-
-    for updated_bodies in channel.try_iter() {
-        for (body_id, body) in &updated_bodies {
-            let is_new = game::upsert_body(game_state, &body);
-
-            if is_new {
-                user_updated_handles.insert(game::get_handle(body_id, &game_state));
-            }
-        }
-    }
-
-    user_updated_handles
 }
 
 fn write_body_updates(
@@ -99,7 +56,7 @@ fn sleep_for_remaining_time(loop_start: Instant, integration_dt_ms: f32) {
 
 pub fn main() {
     let mut writer = std::io::stdout();
-    let stdin_channel = spawn_stdin_channel().expect("Failed to spawn stdin channel");
+    let stdin_channel = user_input::spawn_input_channel().expect("Failed to spawn stdin channel");
     let mut game_state = game::init();
 
     let mut updated_handles: HashSet<RigidBodyHandle> = HashSet::new();
@@ -113,7 +70,7 @@ pub fn main() {
         let loop_start = Instant::now();
 
         // 1. handle user input
-        let user_updated_handles = handle_user_input(&stdin_channel, &mut game_state);
+        let user_updated_handles = user_input::handle_user_input(&stdin_channel, &mut game_state);
         updated_handles.extend(user_updated_handles);
 
         // 2. step physics world and handle updates

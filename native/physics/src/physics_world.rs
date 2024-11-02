@@ -2,7 +2,7 @@ use crate::body;
 use crossbeam::channel::Receiver;
 use rapier3d::dynamics::{ImpulseJointSet, IntegrationParameters, RigidBodySet};
 use rapier3d::prelude::{
-    CollisionEvent, MultibodyJointSet, QueryPipeline, RigidBody, RigidBodyHandle,
+    CollisionEvent, MultibodyJointSet, QueryPipeline, RigidBody, RigidBodyHandle, Rotation,
 };
 use rapier3d::{
     na::Vector3,
@@ -146,4 +146,23 @@ pub fn get_body_mut<'a>(
     handle: &RigidBodyHandle,
 ) -> Option<&'a mut RigidBody> {
     physics_world.bodies.get_mut(*handle)
+}
+
+pub fn move_body(world: &mut PhysicsWorld, handle: &RigidBodyHandle, x: f32, y: f32) {
+    if let Some(existing_body) = get_body_mut(world, handle) {
+        existing_body.set_translation(Vector3::new(x, y, existing_body.translation().z), true);
+    }
+}
+
+pub fn rotate_body(world: &mut PhysicsWorld, handle: &RigidBodyHandle, rotation_angle: f32) {
+    if let Some(existing_body) = get_body_mut(world, handle) {
+        existing_body.set_rotation(Rotation::from_euler_angles(0.0, 0.0, rotation_angle), true);
+    }
+}
+
+pub fn jump_body(world: &mut PhysicsWorld, handle: &RigidBodyHandle, linvelz: f32) {
+    if let Some(existing_body) = get_body_mut(world, handle) {
+        let linvel = existing_body.linvel();
+        existing_body.set_linvel(Vector3::new(linvel.x, linvel.y, linvelz), true);
+    }
 }

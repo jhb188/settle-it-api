@@ -22,14 +22,11 @@ pub struct Body {
 }
 
 #[derive(Copy, Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BodyClass {
-    #[serde(rename = "player")]
     Player,
-    #[serde(rename = "bullet")]
     Bullet,
-    #[serde(rename = "obstacle")]
     Obstacle,
-    #[serde(rename = "test")]
     Test,
 }
 

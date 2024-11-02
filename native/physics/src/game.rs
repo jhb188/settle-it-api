@@ -113,7 +113,7 @@ pub fn upsert_body(game_state: &mut Game, body: &body::Body) -> bool {
         hp: body.hp,
     };
 
-    match game_state.handle_by_body_id.get_mut(&body.id) {
+    match game_state.handle_by_body_id.get(&body.id) {
         Some(existing_body_handle) => {
             if let Some(existing_body) =
                 physics_world::get_body_mut(&mut game_state.world, existing_body_handle)
@@ -263,5 +263,23 @@ fn handle_player_bullet_collision(
         body_data.hp = (body_data.hp - 1).max(0);
         physics_world::remove_body(&mut game_state.world, bullet_handle);
         game_state.metadata_by_handle.remove(&bullet_handle);
+    }
+}
+
+pub fn move_body(game_state: &mut Game, id: &str, x: f32, y: f32) {
+    if let Some(handle) = game_state.handle_by_body_id.get(id) {
+        physics_world::move_body(&mut game_state.world, handle, x, y);
+    }
+}
+
+pub fn rotate_body(game_state: &mut Game, id: &str, rotation_angle: f32) {
+    if let Some(handle) = game_state.handle_by_body_id.get(id) {
+        physics_world::rotate_body(&mut game_state.world, handle, rotation_angle);
+    }
+}
+
+pub fn jump_body(game_state: &mut Game, id: &str, linvel_z: f32) {
+    if let Some(handle) = game_state.handle_by_body_id.get(id) {
+        physics_world::jump_body(&mut game_state.world, handle, linvel_z);
     }
 }
