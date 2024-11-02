@@ -10,7 +10,7 @@ path = "src/lib.rs"
 crate-type = ["dylib"]
 
 [dependencies]
-rustler = "0.21.1"
+rustler = "0.35.0"
 lazy_static = "1.0"
 rapier3d = { version = "0.22.0"}
 serde = { version = "1.0.124", features = ["derive"] }

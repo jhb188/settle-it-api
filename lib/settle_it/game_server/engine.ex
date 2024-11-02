@@ -215,24 +215,16 @@ defmodule SettleIt.GameServer.Engine do
     |> Enum.with_index()
     |> Enum.map(fn {player, i} ->
       current_angle = angle_size * i
-      x = @player_distance_from_center * :math.cos(current_angle)
-      y = @player_distance_from_center * :math.sin(current_angle)
-      z = @player_height / 2
-
-      # angle 0 corresponds to an orientation resting on the x axis, looking in the direction of
-      # the y axis, with the z axis being directly up. rotating (2pi / 4) counterclockwise makes the
-      # orientation face the origin
-      rotation = Math.rad2deg(current_angle + circumference / 4)
 
       {player.id,
        %{
          id: player.id,
          team_id: player.team_id,
          owner_id: player.id,
-         translation: {x, y, z},
+         translation: translation_for_angle(current_angle),
          linvel: {0.0, 0.0, 0.0},
          angvel: {0.0, 0.0, 0.0},
-         rotation: {0.0, 0.0, rotation},
+         rotation: {0.0, 0.0, rotation_for_angle(current_angle)},
          dimensions: {0.0, 0.525, 2.0},
          mass: @player_mass,
          class: "player",
@@ -240,6 +232,22 @@ defmodule SettleIt.GameServer.Engine do
        }}
     end)
     |> Map.new()
+  end
+
+  defp translation_for_angle(angle) do
+    x = @player_distance_from_center * :math.cos(angle)
+    y = @player_distance_from_center * :math.sin(angle)
+    z = @player_height / 2
+
+    {x, y, z}
+  end
+
+  defp rotation_for_angle(angle) do
+    circumference = 2 * :math.pi()
+    # angle 0 corresponds to an orientation resting on the x axis, looking in the direction of
+    # the y axis, with the z axis being directly up. rotating (2pi / 4) counterclockwise makes the
+    # orientation face the origin
+    Math.rad2deg(angle + circumference / 4)
   end
 
   defp get_unused_team_color(%State.Game{teams: teams}) do

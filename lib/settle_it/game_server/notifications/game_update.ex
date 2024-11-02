@@ -46,7 +46,7 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
       id: body.id,
       tid: body.team_id,
       tra: encode_vec3(body.translation),
-      rot: encode_rotation_vector(body.rotation),
+      rot: encode_vec3(body.rotation),
       lv: encode_vec3(body.linvel),
       av: encode_vec3(body.angvel),
       d: encode_vec3(body.dimensions),
@@ -57,6 +57,4 @@ defmodule SettleIt.GameServer.Notifications.GameUpdate do
   end
 
   defp encode_vec3({x, y, z}), do: %{x: x, y: y, z: z}
-
-  defp encode_rotation_vector({x, y, z}), do: encode_vec3({x, y, z})
 end

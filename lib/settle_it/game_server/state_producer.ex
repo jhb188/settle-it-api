@@ -1,4 +1,5 @@
 defmodule SettleIt.GameServer.StateProducer do
+  require Logger
   use GenStage
 
   alias SettleIt.GameServer.Engine
@@ -25,9 +26,8 @@ defmodule SettleIt.GameServer.StateProducer do
   end
 
   @impl true
-  def handle_info(:kill_if_empty, %State.Game{players: players} = state) when players == %{} do
+  def handle_info(:kill_if_empty, %State.Game{players: %{}} = state) do
     Process.exit(self(), :kill)
-
     {:noreply, [], state}
   end
 
@@ -95,28 +95,17 @@ defmodule SettleIt.GameServer.StateProducer do
     end
   end
 
-  def handle_info({:EXIT, _port, reason}, state) do
-    IO.inspect("the port closed unexpectedly: #{reason}")
-
+  def handle_info({:EXIT, port, reason}, state) do
+    Logger.error("Port exited unexpectedly", port: port, reason: reason)
     {:noreply, [], state}
   end
 
-  defp apply_actions(actions, state), do: do_apply_actions(actions, {state, []})
-
-  defp do_apply_actions([], accum) do
-    accum
-  end
-
-  defp do_apply_actions([action | rest], {state, events}) do
-    {next_state, event} = apply_action(action, state)
-
-    next_events =
-      case event do
-        nil -> events
-        event -> events ++ [event]
-      end
-
-    do_apply_actions(rest, {next_state, next_events})
+  defp apply_actions(actions, state) do
+    Enum.reduce(actions, {state, []}, fn action, {state_acc, events_acc} ->
+      {new_state, new_event} = apply_action(action, state_acc)
+      updated_events = if new_event, do: events_acc ++ [new_event], else: events_acc
+      {new_state, updated_events}
+    end)
   end
 
   defp apply_action({:player_start_lobby, player, pid, topic}, state) do

@@ -5,9 +5,9 @@ defmodule SettleIt.MixProject do
     [
       app: :settle_it,
       version: "0.1.0",
-      elixir: "~> 1.5",
+      elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
-      compilers: compilers() ++ Mix.compilers(),
+      compilers: Mix.compilers(),
       rustler_crates: rustler_crates(),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -16,8 +16,6 @@ defmodule SettleIt.MixProject do
   end
 
   # Configuration for the OTP application.
-  #
-  # Type `mix help compile.app` for more information.
   def application do
     [
       mod: {SettleIt.Application, []},
@@ -30,28 +28,18 @@ defmodule SettleIt.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   # Specifies your project dependencies.
-  #
-  # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:phoenix, "~> 1.4.11"},
-      {:phoenix_pubsub, "~> 1.1"},
+      {:phoenix, "~> 1.7"},
+      {:phoenix_pubsub, "~> 2.1"},
       {:jason, "~> 1.0"},
-      {:plug_cowboy, "~> 2.0"},
+      {:plug_cowboy, "~> 2.7"},
       {:gen_stage, "~> 1.0"},
-      {:rustler, "~> 0.21.1"},
+      {:rustler, "~> 0.35.0"},
       {:math, "~> 0.6.0"},
       {:uuid, "~> 1.1"},
-      {:cachex, "~> 3.3"}
+      {:cachex, "~> 4.0"}
     ]
-  end
-
-  # attempt to hack around rebuilding NIF
-  defp compilers() do
-    case System.find_executable("cargo") do
-      nil -> [:phoenix]
-      _ -> [:rustler, :phoenix]
-    end
   end
 
   defp aliases do
