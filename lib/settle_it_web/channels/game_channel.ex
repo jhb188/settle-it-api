@@ -1,4 +1,5 @@
 defmodule SettleItWeb.GameChannel do
+  require Logger
   use SettleItWeb, :channel
 
   alias SettleIt.GameServer.State
@@ -6,63 +7,79 @@ defmodule SettleItWeb.GameChannel do
   def join("game:" <> game_id, %{"player_id" => id, "topic" => topic}, socket) do
     with player <- %State.Player{name: "", id: id},
          socket <- init_socket(socket, game_id, player),
-         :ok <- start_game_server(socket, topic) do
+         :ok <-
+           notify_game_server(
+             socket,
+             {:player_start_lobby, socket.assigns.player, self(), topic}
+           ) do
       {:ok, :ok, socket}
     else
-      nil -> {:error, :not_found}
-      error -> error
+      nil ->
+        Logger.error("Join failed: game #{game_id} or player #{id} not found.")
+
+      error ->
+        Logger.error("Unexpected join error: #{inspect(error)}")
+        error
     end
   end
 
   def join("game:" <> game_id, %{"player_id" => id}, socket) do
     with player <- %State.Player{name: "", id: id},
          socket <- init_socket(socket, game_id, player),
-         :ok <- join_game_server(socket) do
+         :ok <-
+           notify_game_server(
+             socket,
+             {:player_join, socket.assigns.player, self()}
+           ) do
       {:ok, :ok, socket}
     else
-      nil -> {:error, :not_found}
-      error -> error
+      nil ->
+        Logger.error("Join failed: game #{game_id} or player #{id} not found.")
+
+      error ->
+        Logger.error("Unexpected join error: #{inspect(error)}")
+        error
     end
   end
 
   def terminate(_reason, socket) do
-    leave_game_server(socket)
+    notify_game_server(socket, {:player_leave, socket.assigns.player.id})
 
     {:noreply, socket}
   end
 
-  def handle_in("create_team", %{"player_id" => player_id, "name" => name}, socket) do
-    notify_game_server_create_team(socket, player_id, name)
+  def handle_in("create_team", %{"player_id" => player_id, "name" => team_name}, socket) do
+    notify_game_server(socket, {:create_team, player_id, team_name})
 
     {:noreply, socket}
   end
 
   def handle_in("delete_team", %{"team_id" => team_id}, socket) do
-    notify_game_server_delete_team(socket, team_id)
+    notify_game_server(socket, {:delete_team, team_id})
 
     {:noreply, socket}
   end
 
   def handle_in("start_game", _params, socket) do
-    notify_game_server_start_game(socket)
+    notify_game_server(socket, :start_game)
 
     {:noreply, socket}
   end
 
   def handle_in("restart_game", _game_id, socket) do
-    notify_game_server_new_game(socket)
+    notify_game_server(socket, :restart_game)
 
     {:noreply, socket}
   end
 
   def handle_in("player_join_team", %{"player_id" => player_id, "team_id" => team_id}, socket) do
-    notify_game_server_player_join_team(socket, player_id, team_id)
+    notify_game_server(socket, {:player_join_team, player_id, team_id})
 
     {:noreply, socket}
   end
 
   def handle_in("player_update_name", %{"player_id" => player_id, "name" => name}, socket) do
-    notify_game_server_player_update_name(socket, player_id, name)
+    notify_game_server(socket, {:player_update_name, player_id, name})
 
     {:noreply, socket}
   end
@@ -72,7 +89,7 @@ defmodule SettleItWeb.GameChannel do
         %{"player_id" => player_id, "x" => x, "y" => y},
         socket
       ) do
-    notify_game_server_player_move(socket, player_id, %{x: x, y: y})
+    notify_game_server(socket, {:player_move, player_id, %{x: x, y: y}})
 
     {:noreply, socket}
   end
@@ -82,7 +99,7 @@ defmodule SettleItWeb.GameChannel do
         %{"player_id" => player_id, "angle" => angle},
         socket
       ) do
-    notify_game_server_player_rotate(socket, player_id, angle)
+    notify_game_server(socket, {:player_rotate, player_id, angle})
 
     {:noreply, socket}
   end
@@ -92,7 +109,7 @@ defmodule SettleItWeb.GameChannel do
         %{"player_id" => player_id},
         socket
       ) do
-    notify_game_server_player_jump(socket, player_id)
+    notify_game_server(socket, {:player_jump, player_id})
 
     {:noreply, socket}
   end
@@ -109,9 +126,13 @@ defmodule SettleItWeb.GameChannel do
     position = %{x: position_x, y: position_y, z: position_z}
     linvel = %{x: linvel_x, y: linvel_y, z: linvel_z}
 
-    notify_game_server_player_shoot(socket, player_id, position, linvel)
+    notify_game_server(socket, {:player_shoot, player_id, position, linvel})
 
     {:noreply, socket}
+  end
+
+  def handle_in(event, data, _socket) do
+    Logger.error("Received unexpected event #{event} with data #{inspect(data)}.")
   end
 
   def handle_info({:game_updated, game_update}, socket) do
@@ -155,63 +176,5 @@ defmodule SettleItWeb.GameChannel do
       game_server_registry_pid(),
       {socket.assigns.game_id, msg}
     )
-  end
-
-  defp join_game_server(socket) do
-    notify_game_server(
-      socket,
-      {:player_join, socket.assigns.player, self()}
-    )
-  end
-
-  defp start_game_server(socket, topic) do
-    notify_game_server(
-      socket,
-      {:player_start_lobby, socket.assigns.player, self(), topic}
-    )
-  end
-
-  defp leave_game_server(socket) do
-    notify_game_server(socket, {:player_leave, socket.assigns.player.id})
-  end
-
-  defp notify_game_server_start_game(socket) do
-    notify_game_server(socket, :start_game)
-  end
-
-  defp notify_game_server_new_game(socket) do
-    notify_game_server(socket, :restart_game)
-  end
-
-  defp notify_game_server_player_move(socket, player_id, coords) do
-    notify_game_server(socket, {:player_move, player_id, coords})
-  end
-
-  defp notify_game_server_player_rotate(socket, player_id, angle) do
-    notify_game_server(socket, {:player_rotate, player_id, angle})
-  end
-
-  defp notify_game_server_player_jump(socket, player_id) do
-    notify_game_server(socket, {:player_jump, player_id})
-  end
-
-  defp notify_game_server_player_shoot(socket, player_id, position, velocity) do
-    notify_game_server(socket, {:player_shoot, player_id, position, velocity})
-  end
-
-  defp notify_game_server_create_team(socket, player_id, team_name) do
-    notify_game_server(socket, {:create_team, player_id, team_name})
-  end
-
-  defp notify_game_server_player_join_team(socket, player_id, team_id) do
-    notify_game_server(socket, {:player_join_team, player_id, team_id})
-  end
-
-  defp notify_game_server_delete_team(socket, team_id) do
-    notify_game_server(socket, {:delete_team, team_id})
-  end
-
-  defp notify_game_server_player_update_name(socket, player_id, name) do
-    notify_game_server(socket, {:player_update_name, player_id, name})
   end
 end

@@ -12,6 +12,7 @@ defmodule SettleIt.Application do
       # Start the GameServer supervisor and registry
       SettleIt.GameSupervisor,
       SettleIt.GameServer.Registry,
+      {Phoenix.PubSub, [name: SettleIt.PubSub, adapter: Phoenix.PubSub.PG2]},
       # Start the endpoint when the application starts
       SettleItWeb.Endpoint
     ]

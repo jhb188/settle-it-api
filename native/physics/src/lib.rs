@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate rustler;
 
 use rapier3d::prelude::*;
@@ -14,13 +13,6 @@ mod init;
 mod physics_world;
 mod user_input;
 mod util;
-
-mod atoms {
-    rustler_atoms! {
-        atom ok;
-        atom error;
-    }
-}
 
 fn write_body_updates(
     updated_handles: &HashSet<RigidBodyHandle>,

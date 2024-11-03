@@ -1,5 +1,6 @@
 defmodule SettleIt.GameServer.Registry do
   use GenServer
+  require Logger
   alias SettleIt.GameSupervisor
 
   def init(_state) do
@@ -51,6 +52,7 @@ defmodule SettleIt.GameServer.Registry do
         {:ok, pid}
 
       error ->
+        Logger.error("Unexpected error when initializing a game server: #{inspect(error)}")
         error
     end
   end

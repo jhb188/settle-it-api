@@ -1,4 +1,5 @@
 defmodule SettleIt.GameServer.Engine.Message do
+  require Logger
   alias SettleIt.GameServer.State
 
   @spec decode(msg :: String.t()) :: :game_won | {bodies :: [%State.Body{}], extra :: String.t()}
@@ -38,7 +39,9 @@ defmodule SettleIt.GameServer.Engine.Message do
     try do
       {:ok, candidate |> Jason.decode!() |> decode_bodies()}
     rescue
-      Jason.DecodeError -> :error
+      Jason.DecodeError ->
+        Logger.error("Failed to decode message: #{inspect(candidate)}")
+        :error
     end
   end
 
