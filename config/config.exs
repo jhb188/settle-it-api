@@ -15,7 +15,7 @@ config :settle_it, SettleItWeb.Endpoint,
   url: [host: "localhost"],
   secret_key_base: "e2CBrQA9Rcq0xpimSL+P5CodaFOA+YZlQtnY0Yf5099+9Nwt9QVtKSerfC0G07aU",
   render_errors: [view: SettleItWeb.ErrorView, accepts: ~w(json)],
-  pubsub: [name: SettleIt.PubSub, adapter: Phoenix.PubSub.PG2]
+  pubsub_server: SettleIt.PubSub
 
 # Configures Elixir's Logger
 config :logger, :console,
