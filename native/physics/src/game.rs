@@ -1,5 +1,6 @@
 use rapier3d::math::Rotation;
 use rapier3d::na::UnitQuaternion;
+use rapier3d::na::Vector3;
 use rapier3d::prelude::ColliderHandle;
 use rapier3d::prelude::CollisionEvent;
 use rapier3d::prelude::RigidBody;
@@ -190,7 +191,16 @@ fn rigid_body_to_body(body: &RigidBody, metadata: &BodyMetadata) -> body::Body {
 fn rigid_body_rotation_to_angle_deg(body: &RigidBody) -> f32 {
     let rotation: UnitQuaternion<f32> = *body.rotation();
     let angle_radians = rotation.angle();
-    angle_radians * (180.0 / PI)
+    let axis = rotation.axis().unwrap_or(Vector3::z_axis());
+
+    let sign = if axis.z > 0.0 { 1.0 } else { -1.0 };
+    let angle_degrees = sign * angle_radians * (180.0 / PI);
+
+    if angle_degrees < 0.0 {
+        angle_degrees + 360.0
+    } else {
+        angle_degrees
+    }
 }
 
 fn get_num_teams_alive(metadata_by_handle: &HashMap<RigidBodyHandle, BodyMetadata>) -> usize {
