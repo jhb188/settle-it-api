@@ -8,7 +8,6 @@ defmodule SettleIt.MixProject do
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
       compilers: Mix.compilers(),
-      rustler_crates: rustler_crates(),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps()
@@ -47,17 +46,4 @@ defmodule SettleIt.MixProject do
       test: ["test"]
     ]
   end
-
-  defp rustler_crates do
-    [
-      physics: [
-        path: "native/physics",
-        mode: rustc_mode(Mix.env(), System.get_env("RUST_ENV"))
-      ]
-    ]
-  end
-
-  defp rustc_mode(:prod, _), do: :release
-  defp rustc_mode(_, "prod"), do: :release
-  defp rustc_mode(_, _), do: :debug
 end

@@ -210,7 +210,7 @@ defmodule SettleIt.GameServer.StateProducer do
     mix_dir = Mix.env() |> mix_dir()
     phys_dir = "RUST_ENV" |> System.get_env() |> physics_dir()
 
-    "_build/#{mix_dir}/rustler_crates/physics/#{phys_dir}/physics"
+    "_build/#{mix_dir}/lib/settle_it/native/physics/#{phys_dir}/physics"
   end
 
   defp mix_dir("prod"), do: "prod"
