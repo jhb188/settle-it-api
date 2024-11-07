@@ -43,12 +43,30 @@ pub fn overlaps_existing_bodies(body: &Body, bodies: &Vec<Body>) -> bool {
 }
 
 fn bounding_boxes_overlap(a: &Body, b: &Body) -> bool {
-    let (ax_min, ax_max) = (a.translation.0, a.translation.0 + a.dimensions.0);
-    let (bx_min, bx_max) = (b.translation.0, b.translation.0 + b.dimensions.0);
-    let (ay_min, ay_max) = (a.translation.1, a.translation.1 + a.dimensions.1);
-    let (by_min, by_max) = (b.translation.1, b.translation.1 + b.dimensions.1);
-    let (az_min, az_max) = (a.translation.2, a.translation.2 + a.dimensions.2);
-    let (bz_min, bz_max) = (b.translation.2, b.translation.2 + b.dimensions.2);
+    let (ax_min, ax_max) = (
+        a.translation.0 - a.dimensions.0 / 2.0,
+        a.translation.0 + a.dimensions.0 / 2.0,
+    );
+    let (bx_min, bx_max) = (
+        b.translation.0 - b.dimensions.0 / 2.0,
+        b.translation.0 + b.dimensions.0 / 2.0,
+    );
+    let (ay_min, ay_max) = (
+        a.translation.1 - a.dimensions.1 / 2.0,
+        a.translation.1 + a.dimensions.1 / 2.0,
+    );
+    let (by_min, by_max) = (
+        b.translation.1 - b.dimensions.1 / 2.0,
+        b.translation.1 + b.dimensions.1 / 2.0,
+    );
+    let (az_min, az_max) = (
+        a.translation.2 - a.dimensions.2 / 2.0,
+        a.translation.2 + a.dimensions.2 / 2.0,
+    );
+    let (bz_min, bz_max) = (
+        b.translation.2 - b.dimensions.2 / 2.0,
+        b.translation.2 + b.dimensions.2 / 2.0,
+    );
 
     ax_min < bx_max
         && ax_max > bx_min

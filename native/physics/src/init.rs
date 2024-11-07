@@ -3,7 +3,7 @@ use rand::Rng;
 use uuid::Uuid;
 
 const ARENA_WIDTH: f32 = 200.0;
-const MAX_OBSTACLES: usize = 50;
+const MAX_OBSTACLES: usize = 500;
 
 fn create_floor() -> body::Body {
     body::Body {
