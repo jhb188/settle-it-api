@@ -51,7 +51,7 @@ defmodule SettleIt.GameServer.Engine.Message do
 
   defp decode_bodies(raw_bodies) do
     raw_bodies
-    |> Enum.map(fn {k, raw_body} -> {k, decode_body(raw_body)} end)
+    |> Enum.map(fn raw_body -> {raw_body["id"], decode_body(raw_body)} end)
     |> Map.new()
   end
 
