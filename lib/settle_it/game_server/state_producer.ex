@@ -207,19 +207,11 @@ defmodule SettleIt.GameServer.StateProducer do
   defp apply_action(_action, state), do: {state, nil}
 
   defp physics_executable do
-    mix_dir = Mix.env() |> mix_dir()
-    phys_dir = "RUST_ENV" |> System.get_env() |> physics_dir()
-
-    "_build/#{mix_dir}/lib/settle_it/native/physics/#{phys_dir}/physics"
+    Path.join(
+      :code.priv_dir(:settle_it),
+      "native/physics"
+    )
   end
-
-  defp mix_dir("prod"), do: "prod"
-  defp mix_dir(:prod), do: "prod"
-  defp mix_dir(_), do: "dev"
-
-  defp physics_dir("prod"), do: "release"
-  defp physics_dir(:prod), do: "release"
-  defp physics_dir(_), do: "debug"
 
   defp decode_physics(state, raw) do
     raw = state.physics_data <> raw
