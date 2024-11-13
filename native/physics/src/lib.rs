@@ -84,3 +84,5 @@ pub fn main() {
 
     write_update_to_stdout(&mut writer, "game_won");
 }
+
+rustler::init!("Elixir.SettleIt.GameServer.Physics");
